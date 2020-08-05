@@ -1,7 +1,10 @@
-const Path = require('path');
-const FS = require('fs');
+// WebSocket 事件的处理分两部分：
+// 一部分是 Responsor 中注册的处理回调
+// 另一部分是通过 Regiester 机制注册的监听者
+
 const EventEmitter = require('events');
 const IO = require('socket.io');
+const ResponsorManager = require('./responser');
 
 var io;
 var eventLoop = new EventEmitter();
@@ -17,15 +20,22 @@ const init = (server) => {
 			if (idx >= 0) sockets.splice(idx, 1);
 			eventLoop.emit('disconnected', null, socket);
 		});
-		socket.on('__message__', msg => {
-			var event = msg.event, data = msg.data;
-			if (!eventLoop.eventNames().includes(event)) {
-				socket.emit('__message__', {
-					event,
-					err: 'No Responsor!'
-				});
+		socket.on('__message__', async msg => {
+			var event = msg.event, data = msg.data, action = msg.action || 'get', done = false;
+			var [res, query] = ResponsorManager.match(event, action, 'socket');
+			if (!!res) {
+				let result = null;
+				try {
+					result = await res(data, query, event, socket, action, 'socket');
+					socket.send(event, result);
+					done = true;
+				}
+				catch (err) {
+					socket.send(event, null, err.message);
+				}
 			}
-			else {
+
+			if (!!eventLoop.eventNames().includes(event)) {
 				eventLoop.emit(event, data, socket, msg);
 			}
 		});
@@ -35,6 +45,7 @@ const init = (server) => {
 		eventLoop.emit('connected', null, socket);
 	});
 };
+
 const register = (event, responser) => {
 	eventLoop.on(event, responser);
 };
@@ -47,33 +58,6 @@ const broadcast = (event, data) => {
 		socket.send(event, data);
 	});
 };
-
-const autoRegister = path => {
-	var list = FS.readdirSync(path);
-	list.forEach(name => {
-		var p = Path.join(path, name);
-		var stat = FS.statSync(p);
-		if (stat.isFile()) {
-			let match = name.match(/^.+\.js$/i);
-			if (!match) return;
-			let res = require(p);
-			if (!res) return;
-			if (Array.isArray(res)) {
-				res.forEach(res => {
-					register(res.event, res.callback, res.namespace || '');
-				});
-			}
-			else {
-				register(res.event, res.callback, res.namespace || '');
-			}
-		}
-		else if (stat.isDirectory()) {
-			autoRegister(p);
-		}
-	});
-};
-
-autoRegister(Path.join(__dirname, './sockets'));
 
 module.exports = {
 	init,

@@ -1,11 +1,12 @@
 const Koa = require('koa');
 const KoaBody = require('koa-body');
 const KoaStatic = require('koa-static');
-const IO = require('./socket');
 const ResponsorManager = require('./responser');
-const DefaultType = 'application/json';
+const IO = require('./socket');
 const FS = require('fs');
 const Path = require('path');
+
+const DefaultType = 'application/json';
 
 const app = new Koa();
 const kb = KoaBody({
@@ -67,6 +68,9 @@ module.exports = (options, callback) => {
 	apiPrefix = '/' + apiPrefix.replace(/^\/+|\/+$/g, '') + '/';
 	app.use(async ctx => {
 		var method = ctx.method.toLowerCase(), path = ctx.path, params = {};
+
+		console.log('===================================');
+		console.log('  path:', path);
 		if (path.indexOf(apiPrefix) !== 0) {
 			ctx.type = DefaultType;
 			ctx.body = {
@@ -82,8 +86,6 @@ module.exports = (options, callback) => {
 		if (!!ctx.query) for (let key in ctx.query) params[key] = ctx.query[key];
 		if (!!ctx.request.body) for (let key in ctx.request.body) params[key] = ctx.request.body[key];
 
-		console.log('===================================');
-		console.log('  path:', path);
 		console.log('method:', method);
 		console.log(' query:', JSON.stringify(params));
 

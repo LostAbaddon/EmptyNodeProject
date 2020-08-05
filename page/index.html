@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+<title>空白页面</title>
+<script type="text/javascript" src="/socket.io/socket.io.js"></script>
+<style type="text/css">
+	input {
+		padding: 2px 5px;
+		border: none;
+		border-bottom: 1px solid black;
+		outline: none;
+		background: transparent;
+		font-size: 18px;
+	}
+	button {
+		padding: 5px 10px;
+		margin: 10px;
+		cursor: pointer;
+	}
+</style>
+</head>
+<body>
+<div>
+	<span>访问目标：</span><input id="target" type="text">
+</div>
+<div>
+	<span>发送数据：</span><input id="data" type="text">
+</div>
+<div>
+	<button onclick="send()">发送</button>
+</div>
+<script type="text/javascript">
+	var socket = io.connect('/');
+	socket.on('__message__', msg => {
+		var event = msg.event, data = msg.data, err = msg.err;
+		console.log(">>>>", event, "<<<<");
+		console.log(data);
+		console.log(err);
+	});
+
+	const send = () => {
+		var target = document.querySelector('#target').value;
+		var data = document.querySelector('#data').value;
+		socket.emit('__message__', { event: target, data });
+	};
+</script>
+</body>
+</html>
