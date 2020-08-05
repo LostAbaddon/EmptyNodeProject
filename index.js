@@ -1,5 +1,10 @@
-const DefaultPort = 80;
-const DefaultSecurePort = 443;
+const DefaultConfig = {
+	page: './page',
+	port: {
+		http: 80,
+		https: 443
+	}
+};
 
 require("./core");
 loadall("./core/commandline");
@@ -20,17 +25,26 @@ const clp = CLP({
 	title: CSP_Name + " v" + CSP_Version,
 })
 .describe(setStyle(CSP_Name + " v" + CSP_Version, "bold"))
-.addOption('--port -p [port=' + DefaultPort + '] >> 指定HTTP端口')
-.addOption('--secure -s [port=' + DefaultSecurePort + '] >> 指定HTTPS端口')
+.addOption('--config -c <config> >> 指定配置文件')
+.addOption('--port -p [port=' + DefaultConfig.port.http + '] >> 指定HTTP端口')
+.addOption('--secure -s >> 指定HTTPS端口')
 .on('command', async (param, command) => {
-	var option = {
-		port: {
-			http: param.port || DefaultPort,
-			https: param.secure || null
+	var config = param.config;
+	if (!!config) {
+		config = require('path').join(process.cwd(), config);
+		try {
+			config = require(config);
+			config = Object.assign(DefaultConfig.duplicate(), config);
 		}
-	};
-	webServer(option, () => {
-		console.log(setStyle('Monde Vide', 'bold'));
+		catch {
+			config = DefaultConfig.duplicate();
+		}
+	}
+	if (Number.is(param.port)) config.port.http = param.port;
+	if (Number.is(param.secure)) config.port.https = param.secure;
+
+	webServer(config, () => {
+		console.log(setStyle('Vana Mundi: VENI VIDI VICI', 'bold'));
 	});
 })
 ;

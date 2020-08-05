@@ -1,2 +1,7 @@
 {
+	"page": "./page",
+	"port": {
+		"http": 8080,
+		"https": "no"
+	}
 }

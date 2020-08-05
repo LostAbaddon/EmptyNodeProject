@@ -140,18 +140,30 @@ app.use(async ctx => {
 });
 
 module.exports = (options, callback) => {
-	if (Number.is(options.port?.http)) {
+	if (!options.port) {
+		return;
+	}
+
+	if (Number.is(options.port.http)) {
 		let nServer = require('http').createServer(app.callback());
 		IO.init(nServer); // socket.io
 		nServer.listen(options.port.http, callback);
 	}
-	if (Number.is(options.port?.https)) {
-		let csrOption = {
-			key: FS.readFileSync('./CSR/privatekey.pem'),
-			cert: FS.readFileSync('./CSR/certificate.pem'),
-		};
-		let sServer = require('https').createServer(csrOption, app.callback());
-		IO.init(sServer); // socket.io
-		sServer.listen(options.port.https, callback);
+	if (Number.is(options.port.https)) {
+		let csrOption = {}, ok = false;
+		try {
+			csrOption.key = FS.readFileSync('./CSR/privatekey.pem');
+			csrOption.cert = FS.readFileSync('./CSR/certificate.pem');
+			ok = true;
+		}
+		catch {
+			console.error('Missing CSR key-file.');
+			ok = false;
+		}
+		if (ok) {
+			let sServer = require('https').createServer(csrOption, app.callback());
+			IO.init(sServer); // socket.io
+			sServer.listen(options.port.https, callback);
+		}
 	}
 };
