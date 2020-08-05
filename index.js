@@ -23,8 +23,14 @@ const clp = CLP({
 .addOption('--port -p [port=' + DefaultPort + '] >> 指定HTTP端口')
 .addOption('--secure -s [port=' + DefaultSecurePort + '] >> 指定HTTPS端口')
 .on('command', async (param, command) => {
-	webServer(param.port || DefaultPort, param.secure || DefaultSecurePort, () => {
-		console.log(setStyle('MondeVide', 'bold'));
+	var option = {
+		port: {
+			http: param.port || DefaultPort,
+			https: param.secure || null
+		}
+	};
+	webServer(option, () => {
+		console.log(setStyle('Monde Vide', 'bold'));
 	});
 })
 ;

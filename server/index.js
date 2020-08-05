@@ -139,19 +139,19 @@ app.use(async ctx => {
 	console.log('result: JobDone');
 });
 
-module.exports = (port=8001, securePort=8010, callback) => {
-	port = port || 8001;
-
-	var csrOption = {
-		key: FS.readFileSync('./CSR/privatekey.pem'),
-		cert: FS.readFileSync('./CSR/certificate.pem'),
-	};
-
-	var nServer = require('http').createServer(app.callback());
-	IO.init(nServer); // socket.io
-	nServer.listen(port, callback);
-
-	var sServer = require('https').createServer(csrOption, app.callback());
-	IO.init(sServer); // socket.io
-	sServer.listen(securePort, callback);
+module.exports = (options, callback) => {
+	if (Number.is(options.port?.http)) {
+		let nServer = require('http').createServer(app.callback());
+		IO.init(nServer); // socket.io
+		nServer.listen(options.port.http, callback);
+	}
+	if (Number.is(options.port?.https)) {
+		let csrOption = {
+			key: FS.readFileSync('./CSR/privatekey.pem'),
+			cert: FS.readFileSync('./CSR/certificate.pem'),
+		};
+		let sServer = require('https').createServer(csrOption, app.callback());
+		IO.init(sServer); // socket.io
+		sServer.listen(options.port.https, callback);
+	}
 };
