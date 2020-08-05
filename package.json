@@ -1,0 +1,29 @@
+{
+  "name": "EmptyNodeProject",
+  "description": "空NodeJS项目库",
+  "version": "0.0.1",
+  "scripts": {
+    "back": "nodemon ./server/index.js"
+  },
+  "dependencies": {
+    "axios": "^0.18.0",
+    "koa": "^2.11.0",
+    "koa-body": "^4.1.1",
+    "koa-static": "^5.0.0",
+    "nodemon": "^1.19.4",
+    "socket.io": "^2.3.0"
+  },
+  "nodemonConfig": {
+    "ignore": [
+      "src/*",
+      "dist/*"
+    ]
+  },
+  "main": "index.js",
+  "author": "",
+  "license": "GPLv3",
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:LostAbaddon/EmptyNodeProject.git"
+  }
+}
