@@ -1,10 +1,11 @@
 const Koa = require('koa');
 const KoaBody = require('koa-body');
 const KoaStatic = require('koa-static');
-const ResponserList = require('./responser');
 const IO = require('./socket');
+const ResponsorManager = require('./responser');
 const DefaultType = 'application/json';
 const FS = require('fs');
+const Path = require('path');
 
 const app = new Koa();
 const kb = KoaBody({
@@ -25,119 +26,6 @@ const getLocalIP = () => {
 	}
 	return ips;
 };
-const matchRouter = (path, method) => {
-	path = path.split(/[\\\/\.,|]/).filter(p => p.length > 0);
-	var p = '/';
-	path = path.map(q => {
-		q = p + q;
-		p = q + '/';
-		return q;
-	});
-	path.reverse();
-
-	var responser, subs = null;
-	for (let p of path) {
-		let res = ResponserList[p];
-		if (!res) continue;
-		if (!res[method]) continue;
-		responser = res;
-		subs = path[0].replace(p, '').split('/').filter(p => !!p && p.length > 0);
-		break;
-	}
-	return [responser, subs];
-};
-
-// Deal Responsers
-for (let url in ResponserList) {
-	let res = ResponserList[url];
-	let type = res.type || DefaultType;
-	delete res.type
-	if (typeof type === 'string') {
-		let list = {};
-		for (let method in res) {
-			list[method] = type;
-		}
-		type = list;
-	}
-	else {
-		for (let method in res) {
-			if (!type[method]) type[method] = DefaultType;
-		}
-	}
-	res._type = type;
-}
-
-// Static Resources
-app.use(KoaStatic(require('path').join(process.cwd(), 'page')));
-
-// For CORS
-app.use(async (ctx, next) => {
-	ctx.set('Access-Control-Allow-Origin', '*');
-	ctx.set('Access-Control-Allow-Headers', '*');
-	ctx.set('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE');
-
-	var method = ctx.method.toLowerCase();
-	if (method === 'options') {
-		ctx.body = '';
-		ctx.type = 'text/plain';
-		return;
-	}
-
-	await next();
-});
-
-// For FormData
-app.use(kb);
-
-// Transaction Dealers
-app.use(async ctx => {
-	var method = ctx.method.toLowerCase(), path = ctx.path, params = {};
-	if (!!ctx.query) for (let key in ctx.query) params[key] = ctx.query[key];
-	if (!!ctx.request.body) for (let key in ctx.request.body) params[key] = ctx.request.body[key];
-
-	console.log('===================================');
-	console.log('  path:', path);
-	console.log('method:', method);
-	console.log(' query:', JSON.stringify(params));
-
-	var [res, subs] = matchRouter(path, method);
-	if (!res) {
-		ctx.type = DefaultType;
-		ctx.body = {
-			message: 'No Responser Found',
-			code: 404,
-			ok: false
-		};
-		console.log('result: Responser Not Found');
-		return;
-	}
-
-	var type = res._type[method] || DefaultType, data;
-	res = res[method];
-	try {
-		data = await res(params, subs, path, ctx);
-	}
-	catch (e) {
-		ctx.type = DefaultType;
-		ctx.body = {
-			message: e.message,
-			code: 404,
-			ok: false
-		};
-		console.error(' error: ' + e.message);
-		return;
-	}
-
-	if (type !== "auto") {
-		ctx.type = type;
-		ctx.body = {
-			data,
-			code: 0,
-			ok: true
-		};
-	}
-	console.log('result: JobDone');
-});
 
 module.exports = (options, callback) => {
 	if (!options.port) {
@@ -145,9 +33,131 @@ module.exports = (options, callback) => {
 		return;
 	}
 
+	// Load Responsors
+	if (!options.api) {
+		callback(new Errors.ConfigError.NoResponsor());
+		return;
+	}
+	ResponsorManager.load(Path.join(process.cwd(), options.api.local), options.api.url);
+
+	// Static Resources
+	app.use(KoaStatic(Path.join(process.cwd(), options.page)));
+
+	// For CORS
+	app.use(async (ctx, next) => {
+		ctx.set('Access-Control-Allow-Origin', '*');
+		ctx.set('Access-Control-Allow-Headers', '*');
+		ctx.set('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE');
+
+		var method = ctx.method.toLowerCase();
+		if (method === 'options') {
+			ctx.body = '';
+			ctx.type = 'text/plain';
+			return;
+		}
+
+		await next();
+	});
+
+	// For FormData
+	app.use(kb);
+
+	// Transaction Dealers
+	var apiPrefix = options.api.url;
+	apiPrefix = '/' + apiPrefix.replace(/^\/+|\/+$/g, '') + '/';
+	app.use(async ctx => {
+		var method = ctx.method.toLowerCase(), path = ctx.path, params = {};
+		if (path.indexOf(apiPrefix) !== 0) {
+			ctx.type = DefaultType;
+			ctx.body = {
+				message: 'Non-API Request',
+				code: 403,
+				ok: false
+			};
+			console.error('result: Non-API Request');
+			return;
+		}
+		path = path.replace(apiPrefix, '/');
+
+		if (!!ctx.query) for (let key in ctx.query) params[key] = ctx.query[key];
+		if (!!ctx.request.body) for (let key in ctx.request.body) params[key] = ctx.request.body[key];
+
+		console.log('===================================');
+		console.log('  path:', path);
+		console.log('method:', method);
+		console.log(' query:', JSON.stringify(params));
+
+		var [responsor, query] = ResponsorManager.match(path, method, 'web');
+		if (!responsor) {
+			ctx.type = DefaultType;
+			ctx.body = {
+				message: 'No Responsor Found',
+				code: 404,
+				ok: false
+			};
+			console.error('result: Responsor Not Found');
+			return;
+		}
+
+		ctx.type = DefaultType;
+		var data = null;
+		try {
+			data = await responsor(params, query, path, ctx, method, 'web');
+		}
+		catch (err) {
+			ctx.type = DefaultType;
+			ctx.body = {
+				message: err.message,
+				code: 500,
+				ok: false
+			};
+			console.error(' error: ' + err.message);
+			return;
+		}
+		if (data === undefined || data === null) {
+			ctx.type = DefaultType;
+			ctx.body = {
+				message: 'Empty Response',
+				code: 500,
+				ok: false
+			};
+			console.error(' error: Empty Response');
+			return;
+		}
+		if (Number.is(data.code) && Boolean.is(data.ok)) {
+			ctx.type = data.type || DefaultType;
+			if (data.ok) {
+				ctx.body = {
+					data: data.data || data.message,
+					code: data.code,
+					ok: data.ok
+				};
+			}
+			else {
+				ctx.body = {
+					message: data.message || data.data,
+					code: data.code,
+					ok: data.ok
+				};
+			}
+		}
+		else {
+			ctx.type = ctx.type || DefaultType;
+			ctx.body = {
+				data,
+				code: 200,
+				ok: true
+			}
+		}
+
+		console.log('result: JobDone');
+	});
+
+	var hasServer = false;
 	if (Number.is(options.port.http)) {
 		let nServer = require('http').createServer(app.callback());
 		IO.init(nServer); // socket.io
+		hasServer = true;
 		nServer.listen(options.port.http, callback);
 	}
 	if (Number.is(options.port.https)) {
@@ -164,7 +174,12 @@ module.exports = (options, callback) => {
 		if (ok) {
 			let sServer = require('https').createServer(csrOption, app.callback());
 			IO.init(sServer); // socket.io
+			hasServer = true;
 			sServer.listen(options.port.https, callback);
 		}
+	}
+
+	if (!hasServer) {
+		callback(new Errors.ConfigError.NoPorts());
 	}
 };

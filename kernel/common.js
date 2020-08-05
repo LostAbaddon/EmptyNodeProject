@@ -1,6 +1,35 @@
 const FS = require('fs');
 const Path = require('path');
 
+const getAllContents = path => new Promise(res => {
+	var subs = [];
+	FS.readdir(path, (err, list) => {
+		if (!!err || !list || !list.length) {
+			res(subs);
+			return;
+		}
+		var count = list.length;
+		if (count === 0) return res(subs);
+
+		list.forEach(sub => {
+			sub = Path.join(path, sub);
+			FS.stat(sub, async (err, stat) => {
+				if (!err && !!stat) {
+					if (stat.isDirectory()) {
+						sub = await getAllContents(sub);
+						subs.push(...sub);
+					}
+					else if (stat.isFile()) {
+						subs.push(sub);
+					}
+				}
+
+				count --;
+				if (count === 0) res(subs);
+			})
+		});
+	});
+});
 const getAllSubFolders = path => new Promise(res => {
 	var count = 0;
 	var subs = [];
@@ -46,6 +75,7 @@ const saveFile = (path, content, coding='utf8') => new Promise((res, rej) => {
 	})
 });
 
+_('Utils.getAllContents', getAllContents);
 _('Utils.getAllSubFolders', getAllSubFolders);
 _('Utils.getJSON', getJSON);
 _('Utils.saveFile', saveFile);

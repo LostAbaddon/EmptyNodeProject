@@ -9,7 +9,6 @@ const DefaultConfig = {
 require("./core");
 loadall("./core/commandline");
 loadall("./kernel");
-require("./common");
 
 const webServer = require('./server');
 
