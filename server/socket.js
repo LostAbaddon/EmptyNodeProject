@@ -38,6 +38,9 @@ const init = (server) => {
 			if (!!eventLoop.eventNames().includes(event)) {
 				eventLoop.emit(event, data, socket, msg);
 			}
+			else if (!res) {
+				socket.send(event, null, 'Non-API Request');
+			}
 		});
 		socket.send = (event, data, err) => {
 			socket.emit('__message__', { event, data, err });
