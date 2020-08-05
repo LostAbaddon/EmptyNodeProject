@@ -141,6 +141,7 @@ app.use(async ctx => {
 
 module.exports = (options, callback) => {
 	if (!options.port) {
+		callback(new Errors.ConfigError.NoPorts());
 		return;
 	}
 

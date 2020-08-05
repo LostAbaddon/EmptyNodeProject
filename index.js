@@ -8,6 +8,7 @@ const DefaultConfig = {
 
 require("./core");
 loadall("./core/commandline");
+loadall("./kernel");
 require("./common");
 
 const webServer = require('./server');
@@ -43,8 +44,13 @@ const clp = CLP({
 	if (Number.is(param.port)) config.port.http = param.port;
 	if (Number.is(param.secure)) config.port.https = param.secure;
 
-	webServer(config, () => {
-		console.log(setStyle('Vana Mundi: VENI VIDI VICI', 'bold'));
+	webServer(config, (error) => {
+		if (error instanceof Error) {
+			console.error(setStyle('Vana Mundi: DESTRUI', 'bold red'));
+			process.exit();
+			return;
+		}
+		console.log(setStyle('Vana Mundi: VENI VIDI VICI', 'bold green'));
 	});
 })
 ;
