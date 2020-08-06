@@ -176,8 +176,11 @@ class Fiber {
 					if (this.#status === Status.TERMINATED) return;
 
 					// 块结构：FID(2)+SIG(1)+MID(15)+BCOUNT(4)+BINDEX(4)
-					var fid = [msg[0], msg[1]];
-					if (fid[0] !== this.#fid[0] || fid[1] !== this.#fid[1]) return;
+					var fid = [];
+					fid = msg.subarray(0, 2);
+					fid = [...fid];
+					// 收到接收端主动发来的回复，FID 为空，但信息依然需要接受处理
+					if (!!this.#fid && (fid[0] !== this.#fid[0] || fid[1] !== this.#fid[1])) return;
 					var sig = msg[2];
 					if (sig !== 4) return;
 					var mid = msg.subarray(3, 18).toString('base64');
@@ -246,9 +249,7 @@ class Fiber {
 				var data = new Uint8Array([...this.#fid, 1]); // FID(2)+ORDER(1)
 
 				if (this.#isTCP) {
-					this.#socket.write(data, () => {
-						console.log('>>>> Data Send', data);
-					});
+					this.#socket.write(data);
 				} else {
 					this.#socket.send(data, this.#port, this.#address);
 				}

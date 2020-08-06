@@ -1,73 +1,96 @@
-// WebSocket 事件的处理分两部分：
-// 一部分是 Responsor 中注册的处理回调
-// 另一部分是通过 Regiester 机制注册的监听者
-
 const EventEmitter = require('events');
-const IO = require('socket.io');
 const ResponsorManager = require('./responser');
+const tcpManager = require('./tcp');
 
-var io;
-var eventLoop = new EventEmitter();
-var sockets = [];
+const eventLoop = new EventEmitter();
 
-const init = (server) => {
-	io = new IO(server);
+const init = (config, callback) => {
+	var tasks = {}, count = 0, success = 0;
+	var cb = (task, ok) => {
+		if (tasks[task]) return;
+		tasks[task] = true;
+		count --;
+		if (ok) success ++;
+		if (count !== 0) return;
+		if (success === 0) {
+			callback(new Errors.ConfigError.NoSocketServerAvailable());
+		}
+		else {
+			callback();
+		}
+	};
 
-	io.on('connection', socket => {
-		sockets.push(socket);
-		socket.on('disconnect', () => {
-			var idx = sockets.indexOf(socket);
-			if (idx >= 0) sockets.splice(idx, 1);
-			eventLoop.emit('disconnected', null, socket);
+	if (!!config.port.tcp) {
+		count ++;
+		tasks.tcp = false;
+
+		tcpManager.server(config.port.tcp, (svr, err) => {
+			if (!!err) {
+				console.error(setStyle('Launch TCP-Server Failed.', 'bold red'));
+				cb('tcp', false);
+			}
+			else {
+				cb('tcp', true);
+			}
+		}, (msg, resp) => {
+			eventLoop.emit('message', 'tcp', msg, resp);
 		});
-		socket.on('__message__', async msg => {
-			var event = msg.event, data = msg.data, action = msg.action || 'get', done = false;
-			var [res, query] = ResponsorManager.match(event, action, 'socket');
+	}
+	if (!!config.port.udp4 && 1 == 0) {
+		count ++;
+		tasks.udp4 = false;
+		connServer.server('udp4', config.udp4, (svr, err) => {
+			if (!!err) {
+				console.error(setStyle('Launch UDP4-Server Failed.', 'bold red'));
+				cb('udp4', false);
+			}
+			else {
+				cb('udp4', true);
+			}
+		});
+	}
+	if (!!config.port.udp6 && 1 == 0) {
+		count ++;
+		tasks.udp6 = false;
+		connServer.server('udp6', config.udp6, (svr, err) => {
+			if (!!err) {
+				console.error(setStyle('Launch UDP6-Server Failed.', 'bold red'));
+				cb('udp6', false);
+			}
+			else {
+				cb('udp6', true);
+			}
+		});
+	}
+
+	if (count === 0) {
+		callback(new Errors.ConfigError.NoPorts());
+	}
+	else {
+		eventLoop.on('message', async (protocol, msg, resp) => {
+			if (!msg || !msg.event) {
+				resp("ERROR:NOEVENT");
+				return;
+			}
+
+			var event = msg.event, data = msg.data, action = msg.action || 'get';
+			var [res, query] = ResponsorManager.match(event, action, protocol);
 			if (!!res) {
 				let result = null;
 				try {
-					result = await res(data, query, event, socket, action, 'socket');
-					socket.send(event, result);
-					done = true;
+					result = await res(data, query, event, null, action, protocol);
+					resp(result);
 				}
 				catch (err) {
-					socket.send(event, null, err.message);
+					console.error(err.message);
+					resp("ERROR:RESPONSEFAILED");
 				}
 			}
-
-			if (!!eventLoop.eventNames().includes(event)) {
-				eventLoop.emit(event, data, socket, msg);
-			}
-			else if (!res) {
-				socket.send(event, null, 'Non-API Request');
+			else {
+				resp("ERROR:NORESPONSOR");
 			}
 		});
-		socket.send = (event, data, err) => {
-			socket.emit('__message__', { event, data, err });
-		};
-		eventLoop.emit('connected', null, socket);
-	});
-};
-
-const register = (event, responser) => {
-	eventLoop.on(event, responser);
-};
-const unregister = (event, responser) => {
-	eventLoop.off(event, responser);
-};
-const broadcast = (event, data) => {
-	sockets.forEach(socket => {
-		if (!socket) return;
-		socket.send(event, data);
-	});
-};
-
-module.exports = {
-	init,
-	register,
-	unregister,
-	broadcast,
-	get io () {
-		return io
 	}
 };
+
+module.exports = init;

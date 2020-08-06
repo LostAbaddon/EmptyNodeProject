@@ -2,7 +2,7 @@ const Koa = require('koa');
 const KoaBody = require('koa-body');
 const KoaStatic = require('koa-static');
 const ResponsorManager = require('./responser');
-const IO = require('./socket');
+const IO = require('./websocket');
 const FS = require('fs');
 const Path = require('path');
 
@@ -155,18 +155,33 @@ module.exports = (options, callback) => {
 		console.log('result: JobDone');
 	});
 
-	var hasServer = false;
-	if (Number.is(options.port.http)) {
-		let nServer = require('http').createServer(app.callback());
-		IO.init(nServer); // socket.io
-		hasServer = true;
-		nServer.listen(options.port.http, callback);
-	}
+	var count = 0, success = 0, failed = 0, tasks = {};
+	var cb = (task, err) => {
+		if (tasks[task]) return;
+		tasks[task] = true;
+
+		count --;
+		if (!!err) {
+			failed ++;
+			console.error(err.message);
+		}
+		else {
+			success ++;
+		}
+		if (count > 0) return;
+
+		if (success === 0) {
+			callback(new Errors.ConfigError.NoWebServerAvailable());
+		}
+		else {
+			callback();
+		}
+	};
 	if (Number.is(options.port.https)) {
 		let csrOption = {}, ok = false;
 		try {
-			csrOption.key = FS.readFileSync('./CSR/privatekey.pem');
-			csrOption.cert = FS.readFileSync('./CSR/certificate.pem');
+			csrOption.key = FS.readFileSync(Path.join(process.cwd(), options.certification.privateKey));
+			csrOption.cert = FS.readFileSync(Path.join(process.cwd(), options.certification.certificate));
 			ok = true;
 		}
 		catch {
@@ -174,14 +189,38 @@ module.exports = (options, callback) => {
 			ok = false;
 		}
 		if (ok) {
+			tasks.https = false;
 			let sServer = require('https').createServer(csrOption, app.callback());
+			sServer.on('error', err => {
+				cb('https', err);
+			});
 			IO.init(sServer); // socket.io
-			hasServer = true;
-			sServer.listen(options.port.https, callback);
+			count ++;
+			try {
+				sServer.listen(options.port.https, () => cb('https'));
+			}
+			catch (err) {
+				cb('https', err);
+			}
+		}
+	}
+	if (Number.is(options.port.http)) {
+		tasks.http = false;
+		let nServer = require('http').createServer(app.callback());
+		nServer.on('error', err => {
+			cb('http', err);
+		});
+		IO.init(nServer); // socket.io
+		count ++;
+		try {
+			nServer.listen(options.port.http, () => cb('http'));
+		}
+		catch (err) {
+			cb('http', err);
 		}
 	}
 
-	if (!hasServer) {
+	if (count === 0) {
 		callback(new Errors.ConfigError.NoPorts());
 	}
 };
