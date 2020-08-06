@@ -14,7 +14,7 @@ const newID = () => {
 	return id;
 };
 
-const packageMessage = (msg, size) => {
+const packageMessage = (msg, size, id) => {
 	if (msg instanceof Uint8Array) {
 		msg = Buffer.from(msg);
 	}
@@ -26,7 +26,7 @@ const packageMessage = (msg, size) => {
 	var len = msg.byteLength;
 	var count = Math.ceil(len / size);
 	var packs = [];
-	var id = newID();
+	id = id || newID();
 	for (let i = 0; i < count; i ++) {
 		let start = size * i;
 		let end = start + size;
@@ -45,7 +45,7 @@ const packageMessage = (msg, size) => {
 const unpackMessage = msg => {
 	var len = msg.byteLength;
 	var fid = msg.subarray(0, 3);
-	fid = [...fid].join('-');
+	fid = [...fid];
 	var count = msg.subarray(4, 6);
 	count = count.readUInt16BE(0, 2);
 	var index = msg.subarray(7, 9);

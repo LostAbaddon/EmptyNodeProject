@@ -1,13 +1,17 @@
 // TCP 的收发两端
 
+const OS = require('os');
 const Net = require('net');
+const newID = _('Message.newID');
 const packageMessage = _('Message.packageMessage');
 const unpackMessage = _('Message.unpackMessage');
 
 const DefaultConfig = {
 	chunkSize: 4000,
-	expire: 1000 * 60
+	expire: 1000 * 60,
+	lifespan: 1000 * 60 * 10
 };
+const Pipes = {};
 
 const setConfig = cfg => {
 	if (!cfg) return;
@@ -40,12 +44,13 @@ const onReceiveMessage = (msg, repo, callback) => {
 		offset += d.byteLength;
 	});
 	delete repo[msg.id];
-	callback(data);
+	callback(data, msg.id);
 };
 
-const createServer = (port, callback, onMessage, onError) => new Promise(res => {
-	if (!Number.is(port)) {
-		let err = new Errors.ConfigError.UnavailablePort('TCP 端口指定错误！');
+const createServer = (host, port, callback, onMessage, onError) => new Promise(res => {
+	var isIP = !!host.match(/^(\d+\.\d+\.\d+\.\d+|[abcdef\d:]+[abcdef\d]+)$/);
+	if (!Number.is(port) && isIP) {
+		let err = new Errors.ServerError.UnavailablePort('TCP 端口指定错误！');
 		if (!!callback) callback(null, err);
 		res([null, err]);
 		return;
@@ -63,7 +68,7 @@ const createServer = (port, callback, onMessage, onError) => new Promise(res => 
 				packages = null;
 				repo = null;
 				socket.destroy();
-			}, DefaultConfig.expire);
+			}, DefaultConfig.lifespan);
 		};
 		var cancel = () => {
 			if (!!timeoutter) {
@@ -90,7 +95,7 @@ const createServer = (port, callback, onMessage, onError) => new Promise(res => 
 		})
 		.on('data', data => {
 			refresh();
-			onReceiveMessage(data, repo, data => {
+			onReceiveMessage(data, repo, (data, mid) => {
 				var message = data.toString();
 				try {
 					let temp = JSON.parse(message);
@@ -100,7 +105,7 @@ const createServer = (port, callback, onMessage, onError) => new Promise(res => 
 					data = message;
 				}
 				if (!!onMessage) onMessage(data, reply => {
-					packages.push(...packageMessage(reply, DefaultConfig.chunkSize));
+					packages.push(...packageMessage(reply, DefaultConfig.chunkSize, mid));
 					send();
 				});
 			});
@@ -122,23 +127,41 @@ const createServer = (port, callback, onMessage, onError) => new Promise(res => 
 		if (inited) return;
 		inited = true;
 
-		var e = new Errors.ConfigError.CreateServerFailed('TCP 服务端创建失败！\n' + err.message);
+		var e = new Errors.ServerError.CreateServerFailed('TCP 服务端创建失败！\n' + err.message);
 		if (!!callback) callback(e);
 	});
 	// 绑定监听端口
-	server.listen(port, () => {
+	var onInit = () => {
 		if (inited) return;
 		inited = true;
 		if (!!callback) callback(server, null);
 		res([server, null]);
-	});
+	};
+	if (isIP) server.listen(port, host, onInit);
+	else {
+		if (OS.platform() === 'win32') host = '\\\\?\\pipe\\' + host;
+		server.listen(host, onInit);
+	}
 });
 
-const createClient = (host, port, message, callback) => new Promise(res => {
-	var packages = [], repo = {};
+const createClient = (host, port, message, callback, persist=false) => new Promise(res => {
+	var isIP = !!host.match(/^(\d+\.\d+\.\d+\.\d+|[abcdef\d:]+[abcdef\d]+)$/);
+	var tag = host + ':' + port, mid = newID(), smid = mid.join('-');
+	if (!!Pipes[tag]) {
+		let pipe = Pipes[tag];
+		pipe.cbs[smid] = (msg, err) => {
+			if (!!callback) callback(msg, err);
+			res([msg, err]);
+		};
+		pipe.sender(message, mid);
+		return;
+	}
+
+	var packages = [], repo = {}, done;
 	var timeoutter = null;
 	var refresh = () => {
 		cancel();
+		if (persist) return;
 		timeoutter = setTimeout(() => {
 			timeoutter = null;
 			packages = null;
@@ -153,27 +176,60 @@ const createClient = (host, port, message, callback) => new Promise(res => {
 		}
 	};
 
-	var socket = Net.createConnection({ host, port })
+	var socket;
+	if (isIP) socket = Net.createConnection({ host, port });
+	else {
+		if (OS.platform() === 'win32') host = '\\\\?\\pipe\\' + host;
+		socket = Net.createConnection(host);
+	}
+	socket
 	.on('error', async err => {
 		if (err.code === 'ECONNREFUSED') {
-			let e = new Errors.ConfigError.ConnectRemoteFailed('目标连接失败：' + host + ':' + port);
-			callback(null, e);
+			let e = new Errors.ServerError.ConnectRemoteFailed('目标连接失败：' + host + ':' + port);
+			if (persist) {
+				let item = Pipes[tag];
+				delete Pipes[tag];
+				if (!!item && item.cbs) {
+					for (let cb in item.cbs) {
+						cb = item.cbs[cb];
+						if (!!cb) cb(null, e);
+					}
+				}
+			}
+			else {
+				if (!!callback) callback(null, e);
+				res([null, e]);
+			}
 			return;
 		}
 		else if (err.code === 'ECONNRESET') {
-			repo = null;
-			packages = null;
 			socket.destroy();
-			cancel();
 			return;
 		}
 		callback(null, err);
 	})
 	.on('connect', () => {
-		packages.push(...packageMessage(message, DefaultConfig.chunkSize));
-		send();
+		sendData(message, mid);
 	})
 	.on('close', () => {
+		if (!done) {
+			let err = new Errors.ServerError.ConnectionBroken();
+			if (persist) {
+				let item = Pipes[tag];
+				delete Pipes[tag];
+				if (!!item && item.cbs) {
+					for (let cb in item.cbs) {
+						cb = item.cbs[cb];
+						if (!!cb) cb(null, err);
+					}
+				}
+			}
+			else {
+				if (!!callback) callback(null, err);
+				res([null, err]);
+			}
+		}
+		done = true;
 		repo = null;
 		packages = null;
 		socket.destroy();
@@ -181,7 +237,7 @@ const createClient = (host, port, message, callback) => new Promise(res => {
 	})
 	.on('data', data => {
 		refresh();
-		onReceiveMessage(data, repo, data => {
+		onReceiveMessage(data, repo, (data, mid) => {
 			var message = data.toString();
 			try {
 				let temp = JSON.parse(message);
@@ -190,12 +246,24 @@ const createClient = (host, port, message, callback) => new Promise(res => {
 			catch {
 				data = message;
 			}
-			repo = null;
-			packages = null;
-			socket.destroy();
-			cancel();
-			if (!!callback) callback(data, null);
-			res([data, null]);
+			if (persist) {
+				let item = Pipes[tag];
+				if (!!item && item.cbs) {
+					let tid = mid.join('-');
+					let cb = item.cbs[tid];
+					delete item.cbs[tid];
+					if (!!cb) cb(data, null);
+				}
+			}
+			else {
+				done = true;
+				repo = null;
+				packages = null;
+				socket.destroy();
+				cancel();
+				if (!!callback) callback(data, null);
+				res([data, null]);
+			}
 		});
 	});
 
@@ -209,6 +277,22 @@ const createClient = (host, port, message, callback) => new Promise(res => {
 			send();
 		});
 	};
+	var sendData = (message, mid) => {
+		var should = (packages.length === 0);
+		packages.push(...packageMessage(message, DefaultConfig.chunkSize, mid));
+		if (should) send();
+	};
+	if (persist) {
+		let item = {
+			sender: sendData,
+			cbs: {}
+		};
+		item.cbs[smid] = (msg, err) => {
+			if (!!callback) callback(msg, err);
+			res([msg, err]);
+		};
+		Pipes[tag] = item;
+	}
 });
 
 module.exports = {

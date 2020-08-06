@@ -1,6 +1,7 @@
 const EventEmitter = require('events');
 const ResponsorManager = require('./responser');
 const tcpManager = require('./tcp');
+const setStyle = _('CL.SetStyle');
 
 const eventLoop = new EventEmitter();
 
@@ -24,7 +25,8 @@ const init = (config, callback) => {
 		count ++;
 		tasks.tcp = false;
 
-		tcpManager.server(config.port.tcp, (svr, err) => {
+		tcpManager.server('/tmp/node.ipc', null, (svr, err) => {
+		// tcpManager.server('127.0.0.1', config.port.tcp, (svr, err) => {
 			if (!!err) {
 				console.error(setStyle('Launch TCP-Server Failed.', 'bold red'));
 				cb('tcp', false);
