@@ -74,7 +74,7 @@ const init = (config, callback) => {
 		count ++;
 		tasks.udp6 = false;
 
-		udpManager.server('127.0.0.1', config.port.udp6, (svr, err) => {
+		udpManager.server('::1', config.port.udp6, (svr, err) => {
 			if (!!err) {
 				console.error(setStyle('Launch UDPv4-Server Failed.', 'bold red'));
 				cb('udp6', false);

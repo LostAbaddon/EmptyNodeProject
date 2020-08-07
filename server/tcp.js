@@ -73,6 +73,18 @@ const createServer = (host, port, callback, onMessage, onError) => new Promise(r
 		}
 		clearPipes();
 	};
+	var removePipes = socket => {
+		var index = -1;
+		index = pipes.some((p, i) => {
+			if (p.socket === socket) {
+				index = i;
+				return true;
+			}
+		});
+		if (index < 0) return;
+		pipes.splice(index, 1);
+		clearPipes();
+	};
 	var clearPipes = () => {
 		pipes.sort((pa, pb) => pb.stamp - pa.stamp);
 		if (pipes.length > DefaultConfig.poolLimit) {
@@ -88,10 +100,7 @@ const createServer = (host, port, callback, onMessage, onError) => new Promise(r
 		var refresh = () => {
 			cancel();
 			timeoutter = setTimeout(() => {
-				timeoutter = null;
-				packages = null;
-				repo = null;
-				socket.destroy();
+				socket.suicide();
 			}, DefaultConfig.lifespan);
 		};
 		var cancel = () => {
@@ -103,18 +112,10 @@ const createServer = (host, port, callback, onMessage, onError) => new Promise(r
 
 		socket
 		.on('close', () => {
-			repo = undefined;
-			repo = null;
-			packages = null;
-			socket.destroy();
-			cancel();
+			socket.suicide();
 		})
 		.on('error', (err) => {
-			repo = undefined;
-			repo = null;
-			packages = null;
-			socket.destroy();
-			cancel();
+			socket.suicide();
 			if (!!onError) onError(err);
 		})
 		.on('data', data => {
@@ -149,6 +150,7 @@ const createServer = (host, port, callback, onMessage, onError) => new Promise(r
 
 		socket.suicide = () => {
 			cancel();
+			removePipes(socket);
 			packages = null;
 			repo = null;
 			socket.destroy();
@@ -162,7 +164,8 @@ const createServer = (host, port, callback, onMessage, onError) => new Promise(r
 		inited = true;
 
 		var e = new Errors.ServerError.CreateServerFailed('TCP 服务端创建失败！\n' + err.message);
-		if (!!callback) callback(e);
+		if (!!callback) callback(null, e);
+		res([null, e]);
 	});
 	// 绑定监听端口
 	var onInit = () => {
@@ -241,6 +244,7 @@ const createClient = (host, port, message, callback, persist=false) => new Promi
 			return;
 		}
 		callback(null, err);
+		res([null, e]);
 	})
 	.on('connect', () => {
 		sendData(message, mid);

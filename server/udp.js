@@ -51,144 +51,95 @@ const onReceiveMessage = (msg, repo, callback) => {
 };
 
 const createServer = (host, port, callback, onMessage, onError) => new Promise(res => {
-	var isIP4 = Net.isIP(host);
-	if (!isIP4) {
-		let err = new Errors.ServerError.UnavailableHost('UDP 端口指定错误！');
+	var isIPv4 = Net.isIP(host);
+	if (!isIPv4) {
+		let err = new Errors.ServerError.UnavailableHost('UDP 地址指定错误！');
 		if (!!callback) callback(null, err);
 		res([null, err]);
 		return;
 	}
-	isIP4 = Net.isIPv4(host);
+	isIPv4 = Net.isIPv4(host);
+
 	if (!Number.is(port)) {
 		let err = new Errors.ServerError.UnavailablePort('UDP 端口指定错误！');
 		if (!!callback) callback(null, err);
 		res([null, err]);
 		return;
 	}
-	console.log(isIP4, host, port);
-	return;
 
 	var inited = false;
-	var pipes = [];
-	var refreshPipe = socket => {
-		var pipe = pipes.filter(p => p.socket === socket);
-		if (pipe.length < 1) {
-			pipe = { socket, stamp: Date.now() };
-			pipes.push(pipe);
-		}
-		else {
-			pipe = pipe[0];
-			pipe.stamp = Date.now();
-		}
-		clearPipes();
-	};
-	var clearPipes = () => {
-		pipes.sort((pa, pb) => pb.stamp - pa.stamp);
-		if (pipes.length > DefaultConfig.poolLimit) {
-			let outdates = pipes.splice(DefaultConfig.poolLimit, pipes.length);
-			outdates.forEach(pipe => pipe.socket.suicide());
-		}
-	};
+	var packages = [], repo = {};
 
-	var server = Net.createServer(socket => {
-		// connected 事件
-		var packages = [], repo = {};
-		var timeoutter = null;
-		var refresh = () => {
-			cancel();
-			timeoutter = setTimeout(() => {
-				timeoutter = null;
-				packages = null;
-				repo = null;
-				socket.destroy();
-			}, DefaultConfig.lifespan);
-		};
-		var cancel = () => {
-			if (!!timeoutter) {
-				clearTimeout(timeoutter);
-				timeoutter = null;
-			}
-		};
-
-		socket
-		.on('close', () => {
-			repo = undefined;
-			repo = null;
-			packages = null;
-			socket.destroy();
-			cancel();
-		})
-		.on('error', (err) => {
-			repo = undefined;
-			repo = null;
-			packages = null;
-			socket.destroy();
-			cancel();
-			if (!!onError) onError(err);
-		})
-		.on('data', data => {
-			refreshPipe(socket);
-			refresh();
-			onReceiveMessage(data, repo, (data, mid) => {
-				var message = data.toString();
-				try {
-					let temp = JSON.parse(message);
-					data = temp;
-				}
-				catch {
-					data = message;
-				}
-				if (!!onMessage) onMessage(data, socket, reply => {
-					packages.push(...packageMessage(reply, DefaultConfig.chunkSize, mid));
-					send();
-				});
-			});
-		});
-
-		var send = () => {
-			var pack = packages.shift();
-			if (!pack) { // 信息已经全部发送完毕
+	var send = (host, port) => {
+		var pack = packages.shift();
+		if (!pack) { // 信息已经全部发送完毕
+			return;
+		}
+		server.send(pack, port, host, (err) => {
+			if (!!err) {
+				if (!!onError) onError(null, err);
 				return;
 			}
-			refresh();
-			socket.write(pack, () => {
-				send();
-			});
-		};
+			send(host, port);
+		});
+	};
 
-		socket.suicide = () => {
-			cancel();
-			packages = null;
-			repo = null;
-			socket.destroy();
-		};
-
-		refreshPipe(socket);
-	});
-	// 创建失败
-	server.on('error', err => {
-		if (inited) return;
-		inited = true;
-
-		var e = new Errors.ServerError.CreateServerFailed('TCP 服务端创建失败！\n' + err.message);
-		if (!!callback) callback(e);
-	});
-	// 绑定监听端口
-	var onInit = () => {
+	var server = UDP.createSocket(isIPv4 ? 'udp4' : 'udp6');
+	server.on('listening', () => {
 		if (inited) return;
 		inited = true;
 		if (!!callback) callback(server, null);
 		res([server, null]);
-	};
-	if (isIP) server.listen(port, host, onInit);
-	else {
-		if (OS.platform() === 'win32') host = '\\\\?\\pipe\\' + host;
-		server.listen(host, onInit);
+	});
+	server.on('message', (data, remote) => {
+		var socketID = remote.family + '/' + remote.address + '/' + remote.port;
+		repo[socketID] = repo[socketID] || {};
+		onReceiveMessage(data, repo[socketID], (data, mid) => {
+			var message = data.toString();
+			try {
+				let temp = JSON.parse(message);
+				data = temp;
+			}
+			catch {
+				data = message;
+			}
+			if (!!onMessage) onMessage(data, server, reply => {
+				packages.push(...packageMessage(reply, DefaultConfig.chunkSize, mid));
+				send(remote.address, remote.port);
+			});
+		});
+	});
+	// 绑定监听端口
+	try {
+		server.bind(port, host);
+	}
+	catch (err) {
+		if (inited) return;
+		inited = true;
+
+		var e = new Errors.ServerError.CreateServerFailed('TCP 服务端创建失败！\n' + err.message);
+		if (!!callback) callback(null, e);
+		res([null, e]);
 	}
 });
 
 const createClient = (host, port, message, callback, persist=false) => new Promise(res => {
-	var isIP = Net.isIP(host);
+	var isIPv4 = Net.isIP(host);
+	if (!isIPv4) {
+		let err = new Errors.ServerError.UnavailableHost('UDP 地址指定错误！');
+		if (!!callback) callback(null, err);
+		res([null, err]);
+		return;
+	}
+	isIPv4 = Net.isIPv4(host);
+
+	if (!Number.is(port)) {
+		let err = new Errors.ServerError.UnavailablePort('UDP 端口指定错误！');
+		if (!!callback) callback(null, err);
+		res([null, err]);
+		return;
+	}
+
 	var tag = host + ':' + port, mid = newID(), smid = mid.join('-');
 	if (!!Pipes[tag]) {
 		let pipe = Pipes[tag];
@@ -206,10 +157,7 @@ const createClient = (host, port, message, callback, persist=false) => new Promi
 		cancel();
 		if (persist) return;
 		timeoutter = setTimeout(() => {
-			timeoutter = null;
-			packages = null;
-			repo = null;
-			socket.destroy();
+			suicide();
 		}, DefaultConfig.expire);
 	};
 	var cancel = () => {
@@ -219,68 +167,11 @@ const createClient = (host, port, message, callback, persist=false) => new Promi
 		}
 	};
 
-	var socket;
-	if (isIP) socket = Net.createConnection({ host, port });
-	else {
-		if (OS.platform() === 'win32') host = '\\\\?\\pipe\\' + host;
-		socket = Net.createConnection(host);
-	}
-	socket
-	.on('error', async err => {
-		if (err.code === 'ECONNREFUSED') {
-			let e = new Errors.ServerError.ConnectRemoteFailed('目标连接失败：' + host + ':' + port);
-			if (persist) {
-				let item = Pipes[tag];
-				delete Pipes[tag];
-				if (!!item && item.cbs) {
-					for (let cb in item.cbs) {
-						cb = item.cbs[cb];
-						if (!!cb) cb(null, e);
-					}
-				}
-			}
-			else {
-				if (!!callback) callback(null, e);
-				res([null, e]);
-			}
-			return;
-		}
-		else if (err.code === 'ECONNRESET') {
-			socket.destroy();
-			return;
-		}
-		callback(null, err);
-	})
-	.on('connect', () => {
-		sendData(message, mid);
-	})
-	.on('close', () => {
-		if (!done) {
-			let err = new Errors.ServerError.ConnectionBroken();
-			if (persist) {
-				let item = Pipes[tag];
-				delete Pipes[tag];
-				if (!!item && item.cbs) {
-					for (let cb in item.cbs) {
-						cb = item.cbs[cb];
-						if (!!cb) cb(null, err);
-					}
-				}
-			}
-			else {
-				if (!!callback) callback(null, err);
-				res([null, err]);
-			}
-		}
-		done = true;
-		repo = null;
-		packages = null;
-		socket.destroy();
-		cancel();
-	})
-	.on('data', data => {
-		refresh();
-		onReceiveMessage(data, repo, (data, mid) => {
+	var socket = UDP.createSocket(isIPv4 ? 'udp4' : 'udp6');
+	socket.on('message', (msg, remote) => {
+		var socketID = remote.family + '/' + remote.address + '/' + remote.port;
+		repo[socketID] = repo[socketID] || {};
+		onReceiveMessage(msg, repo[socketID], (data, mid) => {
 			var message = data.toString();
 			try {
 				let temp = JSON.parse(message);
@@ -299,24 +190,44 @@ const createClient = (host, port, message, callback, persist=false) => new Promi
 				}
 			}
 			else {
-				done = true;
-				repo = null;
-				packages = null;
-				socket.destroy();
-				cancel();
+				suicide();
 				if (!!callback) callback(data, null);
 				res([data, null]);
 			}
 		});
 	});
 
+	var suicide = () => {
+		cancel();
+		packages = null;
+		repo = null;
+		socket.close();
+	};
 	var send = () => {
 		var pack = packages.shift();
 		if (!pack) { // 信息已经全部发送完毕
 			return;
 		}
 		refresh();
-		socket.write(pack, () => {
+		socket.send(pack, port, host, (err) => {
+			if (!!err) {
+				if (persist) {
+					let item = Pipes[tag];
+					delete Pipes[tag];
+					if (!!item && item.cbs) {
+						for (let cb in item.cbs) {
+							cb = item.cbs[cb];
+							if (!!cb) cb(null, err);
+						}
+					}
+				}
+				else {
+					if (!!callback) callback(null, err);
+					res([null, err]);
+				}
+				suicide();
+				return;
+			}
 			send();
 		});
 	};
@@ -325,6 +236,9 @@ const createClient = (host, port, message, callback, persist=false) => new Promi
 		packages.push(...packageMessage(message, DefaultConfig.chunkSize, mid));
 		if (should) send();
 	};
+
+	sendData(message, mid);
+
 	if (persist) {
 		let item = {
 			sender: sendData,
