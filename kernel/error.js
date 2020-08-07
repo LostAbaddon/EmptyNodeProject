@@ -34,10 +34,11 @@ Errors.ConfigError.NoSocketServerAvailable = new BlackHole("无可用Socket后�
 Errors.ConfigError.NoResponsor = new BlackHole("无 API 响应模块", "CFG-00004", "NoResponsor");
 
 Errors.ServerError = {};
-Errors.ServerError.UnavailablePort = new BlackHole("指定端口错误", "SVR-00001", "UnavailablePort");
-Errors.ServerError.CreateServerFailed = new BlackHole("服务器初始化错误", "SVR-00002", "CreateServerFailed");
-Errors.ServerError.ConnectRemoteFailed = new BlackHole("连接节点失败", "SVR-00003", "ConnectRemoteFailed");
-Errors.ServerError.ConnectionBroken = new BlackHole("连接被终端", "SVR-00004", "ConnectionBroken");
+Errors.ServerError.UnavailableHost = new BlackHole("指定IP错误", "SVR-00001", "UnavailableHost");
+Errors.ServerError.UnavailablePort = new BlackHole("指定端口错误", "SVR-00002", "UnavailablePort");
+Errors.ServerError.CreateServerFailed = new BlackHole("服务器初始化错误", "SVR-00003", "CreateServerFailed");
+Errors.ServerError.ConnectRemoteFailed = new BlackHole("连接节点失败", "SVR-00004", "ConnectRemoteFailed");
+Errors.ServerError.ConnectionBroken = new BlackHole("连接被中断", "SVR-00005", "ConnectionBroken");
 
 global.BlackHole = BlackHole;
 global.Errors = Errors;

@@ -1,7 +1,8 @@
 const EventEmitter = require('events');
-const ResponsorManager = require('./responser');
-const tcpManager = require('./tcp');
 const setStyle = _('CL.SetStyle');
+const tcpManager = require('./tcp');
+const udpManager = require('./udp');
+const ResponsorManager = require('./responser');
 
 const eventLoop = new EventEmitter();
 
@@ -53,30 +54,36 @@ const init = (config, callback) => {
 			eventLoop.emit('message', 'pipe', msg, socket, resp);
 		});
 	}
-	if (!!config.port.udp4 && 1 == 0) {
+	if (Number.is(config.port.udp4)) {
 		count ++;
 		tasks.udp4 = false;
-		connServer.server('udp4', config.udp4, (svr, err) => {
+
+		udpManager.server('127.0.0.1', config.port.udp4, (svr, err) => {
 			if (!!err) {
-				console.error(setStyle('Launch UDP4-Server Failed.', 'bold red'));
+				console.error(setStyle('Launch UDPv4-Server Failed.', 'bold red'));
 				cb('udp4', false);
 			}
 			else {
 				cb('udp4', true);
 			}
+		}, (msg, socket, resp) => {
+			eventLoop.emit('message', 'udp4', msg, socket, resp);
 		});
 	}
-	if (!!config.port.udp6 && 1 == 0) {
+	if (Number.is(config.port.udp6)) {
 		count ++;
 		tasks.udp6 = false;
-		connServer.server('udp6', config.udp6, (svr, err) => {
+
+		udpManager.server('127.0.0.1', config.port.udp6, (svr, err) => {
 			if (!!err) {
-				console.error(setStyle('Launch UDP6-Server Failed.', 'bold red'));
+				console.error(setStyle('Launch UDPv4-Server Failed.', 'bold red'));
 				cb('udp6', false);
 			}
 			else {
 				cb('udp6', true);
 			}
+		}, (msg, socket, resp) => {
+			eventLoop.emit('message', 'udp6', msg, socket, resp);
 		});
 	}
 
