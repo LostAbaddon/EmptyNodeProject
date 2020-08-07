@@ -9,7 +9,8 @@ const unpackMessage = _('Message.unpackMessage');
 const DefaultConfig = {
 	chunkSize: 4000,
 	expire: 1000 * 60,
-	lifespan: 1000 * 60 * 10
+	lifespan: 1000 * 60 * 10,
+	poolLimit: 100,
 };
 const Pipes = {};
 
@@ -17,6 +18,8 @@ const setConfig = cfg => {
 	if (!cfg) return;
 	if (Number.is(cfg.chunkSize) && cfg.chunkSize > 100) DefaultConfig.chunkSize = cfg.chunkSize;
 	if (Number.is(cfg.expire) && cfg.expire > 1000) DefaultConfig.expire = cfg.expire;
+	if (Number.is(cfg.lifespan) && cfg.lifespan > 1000) DefaultConfig.lifespan = cfg.lifespan;
+	if (Number.is(cfg.poolLimit) && cfg.poolLimit > 0) DefaultConfig.poolLimit = cfg.poolLimit;
 };
 
 const onReceiveMessage = (msg, repo, callback) => {
@@ -48,7 +51,7 @@ const onReceiveMessage = (msg, repo, callback) => {
 };
 
 const createServer = (host, port, callback, onMessage, onError) => new Promise(res => {
-	var isIP = !!host.match(/^(\d+\.\d+\.\d+\.\d+|[abcdef\d:]+[abcdef\d]+)$/);
+	var isIP = Net.isIP(host);
 	if (!Number.is(port) && isIP) {
 		let err = new Errors.ServerError.UnavailablePort('TCP 端口指定错误！');
 		if (!!callback) callback(null, err);
@@ -57,6 +60,27 @@ const createServer = (host, port, callback, onMessage, onError) => new Promise(r
 	}
 
 	var inited = false;
+	var pipes = [];
+	var refreshPipe = socket => {
+		var pipe = pipes.filter(p => p.socket === socket);
+		if (pipe.length < 1) {
+			pipe = { socket, stamp: Date.now() };
+			pipes.push(pipe);
+		}
+		else {
+			pipe = pipe[0];
+			pipe.stamp = Date.now();
+		}
+		clearPipes();
+	};
+	var clearPipes = () => {
+		pipes.sort((pa, pb) => pb.stamp - pa.stamp);
+		if (pipes.length > DefaultConfig.poolLimit) {
+			let outdates = pipes.splice(DefaultConfig.poolLimit, pipes.length);
+			outdates.forEach(pipe => pipe.socket.suicide());
+		}
+	};
+
 	var server = Net.createServer(socket => {
 		// connected 事件
 		var packages = [], repo = {};
@@ -94,6 +118,7 @@ const createServer = (host, port, callback, onMessage, onError) => new Promise(r
 			if (!!onError) onError(err);
 		})
 		.on('data', data => {
+			refreshPipe(socket);
 			refresh();
 			onReceiveMessage(data, repo, (data, mid) => {
 				var message = data.toString();
@@ -104,7 +129,7 @@ const createServer = (host, port, callback, onMessage, onError) => new Promise(r
 				catch {
 					data = message;
 				}
-				if (!!onMessage) onMessage(data, reply => {
+				if (!!onMessage) onMessage(data, socket, reply => {
 					packages.push(...packageMessage(reply, DefaultConfig.chunkSize, mid));
 					send();
 				});
@@ -121,6 +146,15 @@ const createServer = (host, port, callback, onMessage, onError) => new Promise(r
 				send();
 			});
 		};
+
+		socket.suicide = () => {
+			cancel();
+			packages = null;
+			repo = null;
+			socket.destroy();
+		};
+
+		refreshPipe(socket);
 	});
 	// 创建失败
 	server.on('error', err => {
@@ -145,7 +179,7 @@ const createServer = (host, port, callback, onMessage, onError) => new Promise(r
 });
 
 const createClient = (host, port, message, callback, persist=false) => new Promise(res => {
-	var isIP = !!host.match(/^(\d+\.\d+\.\d+\.\d+|[abcdef\d:]+[abcdef\d]+)$/);
+	var isIP = Net.isIP(host);
 	var tag = host + ':' + port, mid = newID(), smid = mid.join('-');
 	if (!!Pipes[tag]) {
 		let pipe = Pipes[tag];

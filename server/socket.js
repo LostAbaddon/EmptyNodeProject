@@ -21,12 +21,11 @@ const init = (config, callback) => {
 		}
 	};
 
-	if (!!config.port.tcp) {
+	if (Number.is(config.port.tcp)) {
 		count ++;
 		tasks.tcp = false;
 
-		tcpManager.server('/tmp/node.ipc', null, (svr, err) => {
-		// tcpManager.server('127.0.0.1', config.port.tcp, (svr, err) => {
+		tcpManager.server('127.0.0.1', config.port.tcp, (svr, err) => {
 			if (!!err) {
 				console.error(setStyle('Launch TCP-Server Failed.', 'bold red'));
 				cb('tcp', false);
@@ -34,8 +33,24 @@ const init = (config, callback) => {
 			else {
 				cb('tcp', true);
 			}
-		}, (msg, resp) => {
-			eventLoop.emit('message', 'tcp', msg, resp);
+		}, (msg, socket, resp) => {
+			eventLoop.emit('message', 'tcp', msg, socket, resp);
+		});
+	}
+	if (String.is(config.port.pipe)) {
+		count ++;
+		tasks.pipe = false;
+
+		tcpManager.server(config.port.pipe, null, (svr, err) => {
+			if (!!err) {
+				console.error(setStyle('Launch Pipe-Server Failed.', 'bold red'));
+				cb('pipe', false);
+			}
+			else {
+				cb('pipe', true);
+			}
+		}, (msg, socket, resp) => {
+			eventLoop.emit('message', 'pipe', msg, socket, resp);
 		});
 	}
 	if (!!config.port.udp4 && 1 == 0) {
@@ -69,7 +84,7 @@ const init = (config, callback) => {
 		callback(new Errors.ConfigError.NoPorts());
 	}
 	else {
-		eventLoop.on('message', async (protocol, msg, resp) => {
+		eventLoop.on('message', async (protocol, msg, socket, resp) => {
 			if (!msg || !msg.event) {
 				resp("ERROR:NOEVENT");
 				return;
@@ -80,7 +95,7 @@ const init = (config, callback) => {
 			if (!!res) {
 				let result = null;
 				try {
-					result = await res(data, query, event, null, action, protocol);
+					result = await res(data, query, event, socket, action, protocol);
 					resp(result);
 				}
 				catch (err) {

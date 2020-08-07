@@ -1,6 +1,6 @@
 require("./core");
-loadall("./core/commandline");
-loadall("./kernel");
+loadall(__dirname, "./core/commandline");
+loadall(__dirname, "./kernel");
 
 const webServer = require('./server/web');
 const socketServer = require('./server/socket');
