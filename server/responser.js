@@ -1,8 +1,106 @@
 const Path = require('path');
+const Process = require('child_process');
+const newLongID = _('Message.newLongID');
 
+global.isMultiNode = false;
+global.isMultiProcess = false;
 global.ResponsorMap = {};
 global.ResponsorList = [];
 
+const Config = {
+	process: 1
+};
+const Slavers = [];
+const PendingTasks = [];
+
+var SubProcessState = Symbol.setSymbols('IDLE', 'WAITING', 'WORKING', 'DIED');
+
+const forkChildren = cfg => {
+	var worker = Process.fork(Path.join(__dirname, './subprocess.js'));
+	worker.state = SubProcessState.IDLE;
+	worker.taskQueue = {};
+	worker.taskCount = 0;
+	worker.taskDone = 0;
+	worker.taskTimespent = 0;
+	worker.taskEnergy = 1;
+	worker.taskPower = 0;
+	worker.launchTask = task => {
+		worker.state = SubProcessState.WORKING;
+		worker.taskQueue[task.tid] = task;
+		worker.taskCount ++;
+		worker.taskPower = worker.taskEnergy * (1 + worker.taskCount - worker.taskDone);
+		worker.send({
+			event: 'task',
+			id: task.tid,
+			responsor: task.responsor,
+			data: task.data
+		});
+	};
+
+	worker.on('message', msg => {
+		if (msg.event === 'online') {
+			worker.send({
+				event: 'initial',
+				data: cfg
+			});
+		}
+		else if (msg.event === 'ready') {
+			worker.state = SubProcessState.WAITING;
+			console.log('Slaver Ready: ' + worker.pid);
+		}
+		else if (msg.event === 'jobdone') {
+			if (worker.state === SubProcessState.DIED) return;
+			let info = worker.taskQueue[msg.id];
+			if (!info) return;
+			let used = Date.now() - info.stamp;
+			worker.taskDone ++;
+			worker.taskTimespent += used;
+			let average = worker.taskTimespent / worker.taskDone;
+			worker.taskEnergy = (average * 2 + used) / 3;
+			worker.taskPower = worker.taskEnergy * (1 + worker.taskCount - worker.taskDone);
+			delete worker.taskQueue[msg.id];
+			worker.state = SubProcessState.WAITING;
+			console.log('Slaver-' + worker.pid + ' Job DONE! (' + worker.taskPower + ' | ' + worker.taskCount + ' / ' + worker.taskDone + ' / ' + worker.taskTimespent + ')');
+			info.callback(msg.result);
+		}
+		else {
+			console.log('MainProcess::Message', msg);
+		}
+	});
+	worker.on('exit', code => {
+		console.log('Slaver Died: ' + worker.pid);
+		Slavers.remove(worker);
+		delete worker.taskQueue;
+		delete worker.taskCount;
+		delete worker.taskDone;
+		delete worker.taskTimespent;
+		delete worker.taskPower;
+		if (worker.state !== SubProcessState.DIED) {
+			forkChildren();
+		}
+		delete worker.state;
+	});
+
+	Slavers.push(worker);
+};
+const launchWorkers = cfg => {
+	for (let i = 0; i < Config.process; i ++) forkChildren(cfg);
+};
+
+const setConfig = cfg => {
+	if (cfg.process === 'auto') {
+		Config.process = require('os').cpus().length;
+	}
+	else if (Number.is(cfg.process)) {
+		Config.process = cfg.process;
+		if (Config.process < 1) Config.process = 1;
+	}
+
+	if (Config.process > 1) {
+		isMultiNode = true;
+		launchWorkers(cfg);
+	}
+};
 const loadResponsors = async (path) => {
 	var list = await _('Utils.getAllContents')(path);
 	path = path.replace(/[\/\\]+$/, '') + Path.sep;
@@ -57,6 +155,7 @@ const loadResponsors = async (path) => {
 		else if (!Array.is(res.sources)) res.sources = null;
 
 		res._queryList = parts;
+		res.responsor._url = url;
 
 		ResponsorMap[url] = res;
 		ResponsorList.push(res);
@@ -94,8 +193,36 @@ const matchResponsor = (url, method, source) => {
 	});
 	return [res, query];
 };
+const launchResponsor = (responsor, param, query, url, data, method, source, ip, port) => new Promise(async res => {
+	if (Config.process <= 1) {
+		return res(await responsor(param, query, url, data, method, source, ip, port));
+	}
+
+	var task = {
+		tid: newLongID(),
+		responsor: responsor._url,
+		data: { param, query, url, data, method, source, ip, port },
+		stamp: Date.now(),
+		callback: res
+	};
+
+	// 选进程
+	var worker = Slavers.filter(slaver => {
+		if (slaver.state === SubProcessState.WAITING) return true;
+		if (slaver.state === SubProcessState.WORKING) return true;
+		return false;
+	});
+	if (worker.length === 0) {
+		return PendingTasks.push(task);
+	}
+	worker.sort((pa, pb) => pa.taskPower - pb.taskPower);
+	worker = worker[0];
+	worker.launchTask(task);
+});
 
 module.exports = {
+	setConfig,
 	load: loadResponsors,
-	match: matchResponsor
+	match: matchResponsor,
+	launch: launchResponsor
 };

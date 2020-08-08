@@ -26,7 +26,9 @@ const init = (server) => {
 			if (!!res) {
 				let result = null;
 				try {
-					result = await res(data, query, event, socket, action, 'socket');
+					let remoteIP = socket.request.connection.remoteAddress;
+					if (!!remoteIP.match(/::ffff:(\d+\.\d+\.\d+\.\d+)/)) remoteIP = remoteIP.replace('::ffff:', '');
+					result = await ResponsorManager.launch(res, data, query, event, socket, action, 'socket', remoteIP, 0);
 					socket.send(event, result);
 				}
 				catch (err) {

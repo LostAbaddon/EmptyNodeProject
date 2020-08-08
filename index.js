@@ -4,6 +4,7 @@ loadall(__dirname, "./kernel");
 
 const webServer = require('./server/web');
 const socketServer = require('./server/socket');
+const ResponsorManager = require('./server/responser');
 
 const CLP = _('CL.CLP');
 const setStyle = _('CL.SetStyle');
@@ -35,6 +36,7 @@ module.exports = (config, options) => {
 		if (Number.is(param.tcp)) cfg.port.tcp = param.tcp;
 		if (Number.is(param.udp4)) cfg.port.udp4 = param.udp4;
 		if (Number.is(param.udp6)) cfg.port.udp6 = param.udp6;
+		if (Number.is(param.process) || param.process === 'auto') cfg.process = param.process;
 
 		var tasks = {}, count = 0, success = 0;
 		var cb = (task, ok) => {
@@ -48,10 +50,12 @@ module.exports = (config, options) => {
 				process.exit();
 			}
 			else {
+				ResponsorManager.setConfig(cfg);
 				console.log(setStyle(config.welcome.success, 'bold green'));
 			}
 		};
 
+		// 启动 Web 服务器
 		count ++;
 		tasks.web = false;
 		webServer(cfg, (error) => {
@@ -64,6 +68,7 @@ module.exports = (config, options) => {
 			}
 		});
 
+		// 启动 TCP / UDP 服务器
 		count ++;
 		tasks.socket = false;
 		socketServer(cfg, (error) => {

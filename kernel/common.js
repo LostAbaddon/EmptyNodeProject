@@ -74,8 +74,22 @@ const saveFile = (path, content, coding='utf8') => new Promise((res, rej) => {
 		else res();
 	})
 });
+const getLocalIP = () => {
+	var ips = [];
+	var interfaces = require('os').networkInterfaces();
+	for (let networks in interfaces) {
+		networks = interfaces[networks];
+		for (let addr of networks) {
+			addr = addr.address;
+			if (addr === '127.0.0.1' || addr === '::1') continue;
+			if (!ips.includes(addr)) ips.push(addr);
+		}
+	}
+	return ips;
+};
 
 _('Utils.getAllContents', getAllContents);
 _('Utils.getAllSubFolders', getAllSubFolders);
 _('Utils.getJSON', getJSON);
 _('Utils.saveFile', saveFile);
+_('Utils.getLocalIP', getLocalIP);

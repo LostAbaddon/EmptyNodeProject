@@ -14,20 +14,6 @@ const kb = KoaBody({
 	parsedMethods: ['POST', 'PUT', 'PATCH', 'GET', 'HEAD', 'DELETE']
 });
 
-const getLocalIP = () => {
-	var ips = [];
-	var interfaces = require('os').networkInterfaces();
-	for (let networks in interfaces) {
-		networks = interfaces[networks];
-		for (let addr of networks) {
-			addr = addr.address;
-			if (addr === '127.0.0.1' || addr === '::1') continue;
-			if (!ips.includes(addr)) ips.push(addr);
-		}
-	}
-	return ips;
-};
-
 module.exports = (options, callback) => {
 	if (!options.port) {
 		callback(new Errors.ConfigError.NoPorts());
@@ -66,10 +52,16 @@ module.exports = (options, callback) => {
 	// Transaction Dealers
 	var apiPrefix = options.api.url;
 	apiPrefix = '/' + apiPrefix.replace(/^\/+|\/+$/g, '') + '/';
-	app.use(async ctx => {
+	app.use(async (ctx, next) => {
 		var method = ctx.method.toLowerCase(), path = ctx.path, params = {};
+		var remoteIP = ctx.request.headers['X-Orig-IP']
+			|| ctx.request.headers['X-Orig-IP']
+			|| ctx.request.socket.remoteAddress
+			|| ctx.request.ip;
+		if (!!remoteIP.match(/::ffff:(\d+\.\d+\.\d+\.\d+)/)) remoteIP = remoteIP.replace('::ffff:', '');
 
 		console.log('===================================');
+		console.log('    ip:', remoteIP);
 		console.log('  path:', path);
 		if (path.indexOf(apiPrefix) !== 0) {
 			ctx.type = DefaultType;
@@ -79,7 +71,7 @@ module.exports = (options, callback) => {
 				ok: false
 			};
 			console.error('result: Non-API Request');
-			return;
+			return await next();
 		}
 		path = path.replace(apiPrefix, '/');
 
@@ -98,13 +90,13 @@ module.exports = (options, callback) => {
 				ok: false
 			};
 			console.error('result: Responsor Not Found');
-			return;
+			return await next();
 		}
 
 		ctx.type = DefaultType;
 		var data = null;
 		try {
-			data = await responsor(params, query, path, ctx, method, 'web');
+			data = await ResponsorManager.launch(responsor, params, query, path, ctx, method, 'web', remoteIP, 0);
 		}
 		catch (err) {
 			ctx.type = DefaultType;
@@ -114,7 +106,7 @@ module.exports = (options, callback) => {
 				ok: false
 			};
 			console.error(' error: ' + err.message);
-			return;
+			return await next();
 		}
 		if (data === undefined || data === null) {
 			ctx.type = DefaultType;
@@ -124,24 +116,11 @@ module.exports = (options, callback) => {
 				ok: false
 			};
 			console.error(' error: Empty Response');
-			return;
+			return await next();
 		}
 		if (Number.is(data.code) && Boolean.is(data.ok)) {
 			ctx.type = data.type || DefaultType;
-			if (data.ok) {
-				ctx.body = {
-					data: data.data || data.message,
-					code: data.code,
-					ok: data.ok
-				};
-			}
-			else {
-				ctx.body = {
-					message: data.message || data.data,
-					code: data.code,
-					ok: data.ok
-				};
-			}
+			ctx.body = data;
 		}
 		else {
 			ctx.type = ctx.type || DefaultType;
@@ -153,6 +132,8 @@ module.exports = (options, callback) => {
 		}
 
 		console.log('result: JobDone');
+
+		await next();
 	});
 
 	var count = 0, success = 0, failed = 0, tasks = {};

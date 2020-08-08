@@ -1,5 +1,7 @@
 var IDSet = [Math.floor(Math.range(256)), Math.floor(Math.range(256)), Math.floor(Math.range(256))];
-const newID = () => {
+const IDChars = ('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz=+').split('');
+
+const newShortID = () => {
 	var id = [...IDSet];
 	IDSet[0] ++;
 	if (IDSet[0] === 256) {
@@ -12,6 +14,13 @@ const newID = () => {
 		}
 	}
 	return id;
+};
+const newLongID = (len=8) => {
+	var id = [];
+	for (let i = 0; i < len; i ++) {
+		id.push(Math.pick(IDChars));
+	}
+	return id.join('');
 };
 
 const packageMessage = (msg, size, id) => {
@@ -26,7 +35,7 @@ const packageMessage = (msg, size, id) => {
 	var len = msg.byteLength;
 	var count = Math.ceil(len / size);
 	var packs = [];
-	id = id || newID();
+	id = id || newShortID();
 	for (let i = 0; i < count; i ++) {
 		let start = size * i;
 		let end = start + size;
@@ -59,6 +68,7 @@ const unpackMessage = msg => {
 	}
 };
 
-_('Message.newID', newID);
+_('Message.newShortID', newShortID);
+_('Message.newLongID', newLongID);
 _('Message.packageMessage', packageMessage);
 _('Message.unpackMessage', unpackMessage);

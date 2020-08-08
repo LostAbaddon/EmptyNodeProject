@@ -35,7 +35,8 @@ const init = (config, callback) => {
 				cb('tcp', true);
 			}
 		}, (msg, socket, resp) => {
-			eventLoop.emit('message', 'tcp', msg, socket, resp);
+			var remote = socket.address();
+			eventLoop.emit('message', 'tcp', remote.address, remote.port, msg, socket, resp);
 		});
 	}
 	if (String.is(config.port.pipe)) {
@@ -51,7 +52,7 @@ const init = (config, callback) => {
 				cb('pipe', true);
 			}
 		}, (msg, socket, resp) => {
-			eventLoop.emit('message', 'pipe', msg, socket, resp);
+			eventLoop.emit('message', 'pipe', '', 0, msg, socket, resp);
 		});
 	}
 	if (Number.is(config.port.udp4)) {
@@ -67,7 +68,8 @@ const init = (config, callback) => {
 				cb('udp4', true);
 			}
 		}, (msg, socket, resp) => {
-			eventLoop.emit('message', 'udp4', msg, socket, resp);
+			var remote = socket.address();
+			eventLoop.emit('message', 'udp4', remote.address, remote.port, msg, socket, resp);
 		});
 	}
 	if (Number.is(config.port.udp6)) {
@@ -76,14 +78,15 @@ const init = (config, callback) => {
 
 		udpManager.server('::1', config.port.udp6, (svr, err) => {
 			if (!!err) {
-				console.error(setStyle('Launch UDPv4-Server Failed.', 'bold red'));
+				console.error(setStyle('Launch UDPv6-Server Failed.', 'bold red'));
 				cb('udp6', false);
 			}
 			else {
 				cb('udp6', true);
 			}
 		}, (msg, socket, resp) => {
-			eventLoop.emit('message', 'udp6', msg, socket, resp);
+			var remote = socket.address();
+			eventLoop.emit('message', 'udp6', remote.address, remote.port, msg, socket, resp);
 		});
 	}
 
@@ -91,7 +94,7 @@ const init = (config, callback) => {
 		callback(new Errors.ConfigError.NoPorts());
 	}
 	else {
-		eventLoop.on('message', async (protocol, msg, socket, resp) => {
+		eventLoop.on('message', async (protocol, host, port, msg, socket, resp) => {
 			if (!msg || !msg.event) {
 				resp("ERROR:NOEVENT");
 				return;
@@ -102,7 +105,7 @@ const init = (config, callback) => {
 			if (!!res) {
 				let result = null;
 				try {
-					result = await res(data, query, event, socket, action, protocol);
+					result = await ResponsorManager.launch(res, data, query, event, socket, action, protocol, host, port);
 					resp(result);
 				}
 				catch (err) {

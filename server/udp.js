@@ -2,7 +2,7 @@
 
 const UDP = require('dgram');
 const Net = require('net');
-const newID = _('Message.newID');
+const newShortID = _('Message.newShortID');
 const packageMessage = _('Message.packageMessage');
 const unpackMessage = _('Message.unpackMessage');
 
@@ -140,7 +140,7 @@ const createClient = (host, port, message, callback, persist=false) => new Promi
 		return;
 	}
 
-	var tag = host + ':' + port, mid = newID(), smid = mid.join('-');
+	var tag = host + ':' + port, mid = newShortID(), smid = mid.join('-');
 	if (!!Pipes[tag]) {
 		let pipe = Pipes[tag];
 		pipe.cbs[smid] = (msg, err) => {
