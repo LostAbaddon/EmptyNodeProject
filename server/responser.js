@@ -4,6 +4,7 @@ const newLongID = _('Message.newLongID');
 
 global.isMultiNode = false;
 global.isMultiProcess = false;
+global.isSlaver = false;
 global.ResponsorMap = {};
 global.ResponsorList = [];
 

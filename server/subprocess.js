@@ -5,6 +5,7 @@ loadall(__dirname, "../kernel");
 const ResponsorManager = require('./responser');
 const newLongID = _('Message.newLongID');
 
+global.isSlaver = true;
 const Config = {};
 
 const setConfig = async cfg => {
