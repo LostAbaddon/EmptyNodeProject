@@ -28,7 +28,7 @@ module.exports = (options, callback) => {
 	ResponsorManager.load(Path.join(process.cwd(), options.api.local), options.api.url);
 
 	// Static Resources
-	app.use(KoaStatic(Path.join(process.cwd(), options.page)));
+	if (String.is(options.page)) app.use(KoaStatic(Path.join(process.cwd(), options.page)));
 
 	// For CORS
 	app.use(async (ctx, next) => {
@@ -60,9 +60,6 @@ module.exports = (options, callback) => {
 			|| ctx.request.ip;
 		if (!!remoteIP.match(/::ffff:(\d+\.\d+\.\d+\.\d+)/)) remoteIP = remoteIP.replace('::ffff:', '');
 
-		console.log('===================================');
-		console.log('    ip:', remoteIP);
-		console.log('  path:', path);
 		if (path.indexOf(apiPrefix) !== 0) {
 			ctx.type = DefaultType;
 			ctx.body = {
@@ -77,9 +74,6 @@ module.exports = (options, callback) => {
 
 		if (!!ctx.query) for (let key in ctx.query) params[key] = ctx.query[key];
 		if (!!ctx.request.body) for (let key in ctx.request.body) params[key] = ctx.request.body[key];
-
-		console.log('method:', method);
-		console.log(' query:', JSON.stringify(params));
 
 		var [responsor, query] = ResponsorManager.match(path, method, 'web');
 		if (!responsor) {
@@ -130,8 +124,6 @@ module.exports = (options, callback) => {
 				ok: true
 			}
 		}
-
-		console.log('result: JobDone');
 
 		await next();
 	});

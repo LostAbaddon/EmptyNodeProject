@@ -32,6 +32,9 @@ process.on('message', msg => {
 	else if (msg.event === 'task') {
 		doTask(msg.id, msg.responsor, msg.data);
 	}
+	else if (msg.event === 'suicide') {
+		process.exit();
+	}
 	else {
 		console.log('SubProcess(' + process.pid + ')::Message', msg);
 	}

@@ -1,6 +1,7 @@
 const Path = require('path');
 const Process = require('child_process');
 const newLongID = _('Message.newLongID');
+const SubProcessState = Symbol.setSymbols('IDLE', 'WAITING', 'WORKING', 'DIED');
 
 global.isMultiNode = false;
 global.isMultiProcess = false;
@@ -14,7 +15,7 @@ const Config = {
 const Slavers = [];
 const PendingTasks = [];
 
-var SubProcessState = Symbol.setSymbols('IDLE', 'WAITING', 'WORKING', 'DIED');
+var MainProcessState = SubProcessState.WORKING;
 
 const forkChildren = cfg => {
 	var worker = Process.fork(Path.join(__dirname, './subprocess.js'));
@@ -37,6 +38,10 @@ const forkChildren = cfg => {
 			data: task.data
 		});
 	};
+	worker.suicide = () => {
+		worker.state = SubProcessState.DIED;
+		worker.send({ event: 'suicide' })
+	};
 
 	worker.on('message', msg => {
 		if (msg.event === 'online') {
@@ -47,6 +52,10 @@ const forkChildren = cfg => {
 		}
 		else if (msg.event === 'ready') {
 			worker.state = SubProcessState.WAITING;
+			if (PendingTasks.length > 0) {
+				let task = PendingTasks.shift();
+				worker.launchTask(task);
+			}
 			console.log('Slaver Ready: ' + worker.pid);
 		}
 		else if (msg.event === 'jobdone') {
@@ -62,7 +71,14 @@ const forkChildren = cfg => {
 			delete worker.taskQueue[msg.id];
 			worker.state = SubProcessState.WAITING;
 			console.log('Slaver-' + worker.pid + ' Job DONE! (' + worker.taskPower + ' | ' + worker.taskCount + ' / ' + worker.taskDone + ' / ' + worker.taskTimespent + ')');
+			if (PendingTasks.length > 0) {
+				let task = PendingTasks.shift();
+				worker.launchTask(task);
+			}
 			info.callback(msg.result);
+		}
+		else if (msg.event === 'extinct') {
+			extinctSlavers();
 		}
 		else {
 			console.log('MainProcess::Message', msg);
@@ -79,7 +95,9 @@ const forkChildren = cfg => {
 		if (worker.state !== SubProcessState.DIED) {
 			forkChildren();
 		}
-		delete worker.state;
+		else if (MainProcessState === SubProcessState.DIED && Slavers.length === 0) {
+			destroyMonde();
+		}
 	});
 
 	Slavers.push(worker);
@@ -220,10 +238,27 @@ const launchResponsor = (responsor, param, query, url, data, method, source, ip,
 	worker = worker[0];
 	worker.launchTask(task);
 });
+const extinctSlavers = () => {
+	if (isSlaver) return;
+
+	if (MainProcessState !== SubProcessState.DIED) {
+		MainProcessState = SubProcessState.DIED;
+		if (Config.process <= 1) {
+			destroyMonde();
+		}
+		else {
+			Slavers.forEach(worker => worker.suicide());
+		}
+	}
+};
+const destroyMonde = () => {
+	process.exit();
+};
 
 module.exports = {
 	setConfig,
 	load: loadResponsors,
 	match: matchResponsor,
-	launch: launchResponsor
+	launch: launchResponsor,
+	extinct: extinctSlavers
 };
