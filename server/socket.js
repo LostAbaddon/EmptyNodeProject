@@ -69,7 +69,7 @@ const init = (config, callback) => {
 			}
 		}, (msg, socket, resp) => {
 			var remote = socket.address();
-			eventLoop.emit('message', 'udp4', remote.address, remote.port, msg, socket, resp);
+			eventLoop.emit('message', 'udp', remote.address, remote.port, msg, socket, resp);
 		});
 	}
 	if (Number.is(config.port.udp6)) {
@@ -86,7 +86,7 @@ const init = (config, callback) => {
 			}
 		}, (msg, socket, resp) => {
 			var remote = socket.address();
-			eventLoop.emit('message', 'udp6', remote.address, remote.port, msg, socket, resp);
+			eventLoop.emit('message', 'udp', remote.address, remote.port, msg, socket, resp);
 		});
 	}
 
@@ -109,12 +109,22 @@ const init = (config, callback) => {
 					resp(result);
 				}
 				catch (err) {
-					console.error(err.message);
-					resp("ERROR:RESPONSEFAILED");
+					console.error(err);
+					resp({
+						ok: false,
+						code: err.code || 500,
+						message: err.message
+					});
 				}
 			}
 			else {
-				resp("ERROR:NORESPONSOR");
+				let err = new Errors.ConfigError.NoResponsor();
+				console.error(err);
+				resp({
+					ok: false,
+					code: err.code,
+					message: err.message
+				});
 			}
 		});
 	}

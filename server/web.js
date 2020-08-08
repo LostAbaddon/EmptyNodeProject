@@ -88,41 +88,19 @@ module.exports = (options, callback) => {
 		}
 
 		ctx.type = DefaultType;
-		var data = null;
+		var data;
 		try {
 			data = await ResponsorManager.launch(responsor, params, query, path, ctx, method, 'web', remoteIP, 0);
+			ctx.type = data.type || DefaultType;
+			ctx.body = data;
 		}
 		catch (err) {
 			ctx.type = DefaultType;
 			ctx.body = {
-				message: err.message,
-				code: 500,
-				ok: false
+				ok: false,
+				code: err.code || 500,
+				message: err.message
 			};
-			console.error(' error: ' + err.message);
-			return await next();
-		}
-		if (data === undefined || data === null) {
-			ctx.type = DefaultType;
-			ctx.body = {
-				message: 'Empty Response',
-				code: 500,
-				ok: false
-			};
-			console.error(' error: Empty Response');
-			return await next();
-		}
-		if (Number.is(data.code) && Boolean.is(data.ok)) {
-			ctx.type = data.type || DefaultType;
-			ctx.body = data;
-		}
-		else {
-			ctx.type = ctx.type || DefaultType;
-			ctx.body = {
-				data,
-				code: 200,
-				ok: true
-			}
 		}
 
 		await next();

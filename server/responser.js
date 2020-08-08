@@ -87,12 +87,25 @@ const forkChildren = cfg => {
 	worker.on('exit', code => {
 		console.log('Slaver Died: ' + worker.pid);
 		Slavers.remove(worker);
+
+		var died = worker.state === SubProcessState.DIED;
+		worker.state = SubProcessState.DIED;
+		var err = new Errors.RuntimeError.SubProcessBrokenDown();
+		for (let task in worker.taskQueue) {
+			task = worker.taskQueue[task];
+			if (!task) continue;
+			task.callback({
+				ok: false,
+				code: err.code,
+				message: err.message
+			});
+		}
 		delete worker.taskQueue;
 		delete worker.taskCount;
 		delete worker.taskDone;
 		delete worker.taskTimespent;
 		delete worker.taskPower;
-		if (worker.state !== SubProcessState.DIED) {
+		if (!died) {
 			forkChildren();
 		}
 		else if (MainProcessState === SubProcessState.DIED && Slavers.length === 0) {
@@ -214,7 +227,18 @@ const matchResponsor = (url, method, source) => {
 };
 const launchResponsor = (responsor, param, query, url, data, method, source, ip, port) => new Promise(async res => {
 	if (Config.process <= 1) {
-		return res(await responsor(param, query, url, data, method, source, ip, port));
+		let result;
+		try {
+			result = await responsor(param, query, url, data, method, source, ip, port);
+		}
+		catch (err) {
+			result = {
+				ok: false,
+				code: err.code || 500,
+				message: err.message
+			};
+		}
+		return res(result);
 	}
 
 	var task = {
@@ -252,6 +276,16 @@ const extinctSlavers = () => {
 	}
 };
 const destroyMonde = () => {
+	if (PendingTasks.length > 0) {
+		let err = new Errors.RuntimeError.MainProcessExited();
+		PendingTasks.forEach(task => {
+			task.callback({
+				ok: false,
+				code: err.code,
+				message: err.message
+			});
+		});
+	}
 	process.exit();
 };
 

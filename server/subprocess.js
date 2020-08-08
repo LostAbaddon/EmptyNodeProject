@@ -17,7 +17,17 @@ const setConfig = async cfg => {
 };
 const doTask = async (tid, target, data) => {
 	var resp = ResponsorMap[target];
-	var result = await resp.responsor(data.param, data.query, data.url, data.data, data.method, data.source, data.ip, data.port);
+	var result;
+	try {
+		result = await resp.responsor(data.param, data.query, data.url, data.data, data.method, data.source, data.ip, data.port);
+	}
+	catch (err) {
+		result = {
+			ok: false,
+			code: err.code,
+			message: err.message
+		};
+	}
 	process.send({
 		event: 'jobdone',
 		id: tid,

@@ -32,7 +32,12 @@ const init = (server) => {
 					socket.send(event, result);
 				}
 				catch (err) {
-					socket.send(event, null, err.message);
+					socket.send(event, {
+						ok: false,
+						code: err.code || 500,
+						message: err.message
+					});
+					console.error(err);
 				}
 			}
 

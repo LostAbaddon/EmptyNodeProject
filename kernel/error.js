@@ -40,5 +40,9 @@ Errors.ServerError.CreateServerFailed = new BlackHole("服务器初始化错误"
 Errors.ServerError.ConnectRemoteFailed = new BlackHole("连接节点失败", "SVR-00004", "ConnectRemoteFailed");
 Errors.ServerError.ConnectionBroken = new BlackHole("连接被中断", "SVR-00005", "ConnectionBroken");
 
+Errors.RuntimeError = {};
+Errors.RuntimeError.MainProcessExited = new BlackHole("主进程关闭", "RTM-00001", "MainProcessExited");
+Errors.RuntimeError.SubProcessBrokenDown = new BlackHole("子进程离线", "RTM-00002", "SubProcessBrokenDown");
+
 global.BlackHole = BlackHole;
 global.Errors = Errors;
