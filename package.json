@@ -1,7 +1,7 @@
 {
 	"name": "EmptyNodeProject",
 	"description": "空NodeJS项目库",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"dependencies": {
 		"axios": "^0.18.0",
 		"koa": "^2.11.0",
