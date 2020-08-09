@@ -1,4 +1,5 @@
 const Path = require('path');
+const Galanet = require('./galanet');
 
 require("../core");
 loadall(__dirname, "../kernel");
@@ -6,13 +7,14 @@ const ResponsorManager = require('./responser');
 const newLongID = _('Message.newLongID');
 
 global.isSlaver = true;
-const Config = {};
+const Config = { path: '' };
 
 const setConfig = async cfg => {
 	if (!!cfg.api?.local) {
 		Config.path = cfg.api.local;
 		await ResponsorManager.load(Path.join(process.cwd(), Config.path));
 	}
+	Galanet.setConfig(cfg);
 	process.send({ event: 'ready' });
 };
 const doTask = async (tid, target, data) => {

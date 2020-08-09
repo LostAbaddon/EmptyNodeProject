@@ -44,5 +44,8 @@ Errors.RuntimeError = {};
 Errors.RuntimeError.MainProcessExited = new BlackHole("主进程关闭", "RTM-00001", "MainProcessExited");
 Errors.RuntimeError.SubProcessBrokenDown = new BlackHole("子进程离线", "RTM-00002", "SubProcessBrokenDown");
 
+Errors.GalanetError = {};
+Errors.GalanetError.ShakehandFailed = new BlackHole("Galanet握手失败", "GLN-00001", "ShakehandFailed");
+
 global.BlackHole = BlackHole;
 global.Errors = Errors;

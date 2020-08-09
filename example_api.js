@@ -16,6 +16,6 @@ const responsor = (param, query, url, data, method, source, ip, port) => {
 
 module.exports = {
 	responsor,
-	methods: [ 'get', 'put', 'delete', 'post' ],
-	source: [ 'web', 'tcp', 'udp', 'pipe' ]
+	methods: [ 'get', 'put', 'delete', 'post' ], // 如果要匹配所有方法，则可以省略该字段，或取值为 "all"
+	source: [ 'web', 'tcp', 'udp', 'pipe', 'socket' ]      // 如果要匹配所有渠道，则可以省略该字段，或取值为 "all"
 };

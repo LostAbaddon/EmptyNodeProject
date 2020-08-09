@@ -1,6 +1,8 @@
 const Path = require('path');
 const Process = require('child_process');
+const Galanet = require('./galanet');
 const newLongID = _('Message.newLongID');
+
 const SubProcessState = Symbol.setSymbols('IDLE', 'WAITING', 'WORKING', 'DIED');
 
 global.isMultiNode = false;
@@ -10,7 +12,8 @@ global.ResponsorMap = {};
 global.ResponsorList = [];
 
 const Config = {
-	process: 1
+	process: 1,
+	services: []
 };
 const Slavers = [];
 const PendingTasks = [];
@@ -77,6 +80,9 @@ const forkChildren = cfg => {
 			}
 			info.callback(msg.result);
 		}
+		else if (msg.event === 'command') {
+			process.emit(msg.action, msg.data);
+		}
 		else if (msg.event === 'extinct') {
 			extinctSlavers();
 		}
@@ -120,6 +126,9 @@ const launchWorkers = cfg => {
 };
 
 const setConfig = cfg => {
+	if (Array.is(cfg.api.services)) Config.services.push(...cfg.api.services);
+	else if (String.is(cfg.api.services)) Config.services.push(cfg.api.services);
+
 	if (cfg.process === 'auto') {
 		Config.process = require('os').cpus().length;
 	}
@@ -132,6 +141,8 @@ const setConfig = cfg => {
 		isMultiNode = true;
 		launchWorkers(cfg);
 	}
+
+	Galanet.setConfig(cfg);
 };
 const loadResponsors = async (path) => {
 	var list = await _('Utils.getAllContents')(path);
@@ -200,7 +211,7 @@ const matchResponsor = (url, method, source) => {
 		if (didMatch) {
 			didMatch = false;
 			if (res.methods === null || (!!res.methods.includes && res.methods.includes(method))) didMatch = true;
-			if (didMatch) return [res, query];
+			if (didMatch) return [res.responsor, query];
 		}
 	}
 
@@ -232,6 +243,7 @@ const launchResponsor = (responsor, param, query, url, data, method, source, ip,
 			result = await responsor(param, query, url, data, method, source, ip, port);
 		}
 		catch (err) {
+			console.error(err);
 			result = {
 				ok: false,
 				code: err.code || 500,

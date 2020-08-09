@@ -2,6 +2,7 @@ require("./core");
 loadall(__dirname, "./core/commandline");
 loadall(__dirname, "./kernel");
 
+require('./server/center');
 const webServer = require('./server/web');
 const socketServer = require('./server/socket');
 const ResponsorManager = require('./server/responser');
