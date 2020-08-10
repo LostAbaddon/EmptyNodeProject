@@ -2,7 +2,9 @@ const Path = require('path');
 const Process = require('child_process');
 const Galanet = require('./galanet');
 const Watcher = require('../kernel/watcher');
+const setStyle = _('CL.SetStyle');
 const newLongID = _('Message.newLongID');
+const ModuleManager = _('Utils.ModuleManager');
 const SubProcessState = Symbol.setSymbols('IDLE', 'WAITING', 'WORKING', 'DIED');
 
 global.isDelegator = false;
@@ -165,71 +167,109 @@ const setConfig = cfg => {
 
 	Galanet.setConfig(cfg);
 };
-const loadResponsors = async (path, monitor=true) => {
-	var list = await _('Utils.getAllContents')(path);
-
-	// 监视目标路径的更新情况
-	// if (monitor) Watcher.add(path, list, (...args) => {
-	// 	console.log('FUCK!!!!', args);
-	// });
-
-	path = path.replace(/[\/\\]+$/, '') + Path.sep;
-	list.forEach(filepath => {
-		var url = filepath.replace(path, '');
-		var parts = url.split(/[\/\\]+/).filter(f => f.length > 0);
-		var last = parts.last;
-		if (!!last.match(/\.js$/i)) {
-			last = last.substr(0, last.length - 3);
-			if (last === 'index') {
-				parts.splice(parts.length - 1, 1);
-			}
-			else {
-				parts[parts.length - 1] = last;
-			}
+const loadResponseFile = (path, filepath) => {
+	var url = filepath.replace(path, '');
+	var parts = url.split(/[\/\\]+/).filter(f => f.length > 0);
+	var last = parts.last;
+	if (!!last.match(/\.js$/i)) {
+		last = last.substr(0, last.length - 3);
+		if (last === 'index') {
+			parts.splice(parts.length - 1, 1);
 		}
-		url = '/' + parts.join('/');
-		parts = parts.map(part => {
-			if (!!part.match(/^\[.*\]$/)) {
-				return {
-					name: part.replace(/^\[+|\]+$/g, ''),
-					dynamic: true
-				};
+		else {
+			parts[parts.length - 1] = last;
+		}
+	}
+	url = '/' + parts.join('/');
+	parts = parts.map(part => {
+		if (!!part.match(/^\[.*\]$/)) {
+			return {
+				name: part.replace(/^\[+|\]+$/g, ''),
+				dynamic: true
+			};
+		}
+		else {
+			return {
+				name: part,
+				dynamic: false
+			};
+		}
+	});
+
+	var res = require(filepath);
+	if (!res || !res.responsor) return;
+
+	if (!res.methods) {
+		res.methods = null;
+	}
+	else if (String.is(res.methods)) {
+		if (res.methods === '' || res.methods === 'all') res.methods = null;
+		else res.methods = [res.methods];
+	}
+	else if (!Array.is(res.methods)) res.methods = null;
+
+	if (!res.sources) {
+		res.sources = null;
+	}
+	else if (String.is(res.sources)) {
+		if (res.sources === '' || res.sources === 'all') res.sources = null;
+		else res.sources = [res.sources];
+	}
+	else if (!Array.is(res.sources)) res.sources = null;
+
+	res._queryList = parts;
+	res.responsor._url = url;
+
+	ResponsorMap[url] = res;
+	ResponsorList.push(res);
+};
+const unloadResponseFile = (path, filepath) => {
+	var url = filepath.replace(path, '');
+	var parts = url.split(/[\/\\]+/).filter(f => f.length > 0);
+	var last = parts.last;
+	if (!!last.match(/\.js$/i)) {
+		last = last.substr(0, last.length - 3);
+		if (last === 'index') {
+			parts.splice(parts.length - 1, 1);
+		}
+		else {
+			parts[parts.length - 1] = last;
+		}
+	}
+	url = '/' + parts.join('/');
+
+	var res = ResponsorMap[url];
+	ResponsorList.remove(res);
+	delete ResponsorMap[url];
+};
+const loadResponsors = async (path, monitor=true) => {
+	path = path.replace(/[\/\\]+$/, '') + Path.sep;
+
+	var list;
+	// 监视目标路径的更新情况
+	if (monitor) {
+		list = await Watcher.add(path, (event, filepath) => {
+			if (event === Watcher.EventType.NewFile) {
+				console.log(setStyle('新增API模块：' + filepath, 'green'));
+				loadResponseFile(path, filepath);
 			}
-			else {
-				return {
-					name: part,
-					dynamic: false
-				};
+			else if (event === Watcher.EventType.ModifyFile) {
+				console.log(setStyle('更新API模块：' + filepath, 'yellow'));
+				unloadResponseFile(path, filepath);
+				ModuleManager.dump(filepath);
+				loadResponseFile(path, filepath);
+			}
+			else if (event === Watcher.EventType.DeleteFile) {
+				console.log(setStyle('移除API模块：' + filepath, 'pink'));
+				unloadResponseFile(path, filepath);
 			}
 		});
+	}
+	else {
+		list = await _('Utils.getAllContents')(path);
+	}
 
-		var res = require(filepath);
-		if (!res || !res.responsor) return;
-
-		if (!res.methods) {
-			res.methods = null;
-		}
-		else if (String.is(res.methods)) {
-			if (res.methods === '' || res.methods === 'all') res.methods = null;
-			else res.methods = [res.methods];
-		}
-		else if (!Array.is(res.methods)) res.methods = null;
-
-		if (!res.sources) {
-			res.sources = null;
-		}
-		else if (String.is(res.sources)) {
-			if (res.sources === '' || res.sources === 'all') res.sources = null;
-			else res.sources = [res.sources];
-		}
-		else if (!Array.is(res.sources)) res.sources = null;
-
-		res._queryList = parts;
-		res.responsor._url = url;
-
-		ResponsorMap[url] = res;
-		ResponsorList.push(res);
-	});
+	list.forEach(filepath => loadResponseFile(path, filepath));
 };
 const matchResponsor = (url, method, source) => {
 	var res = ResponsorMap[url], query = {}, didMatch = false;

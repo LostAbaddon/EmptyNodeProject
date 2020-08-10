@@ -82,7 +82,7 @@ const reshakehand = ip => {
 	}, 1000);
 };
 const checkRequester = ip => Config.nodes.some(node => node.host === ip);
-const launchTask = (responsor, param, query, url, data, method, source, ip, port) => new Promise(async res => {
+const launchTask = async (responsor, param, query, url, data, method, source, ip, port) => {
 	var resps = [];
 	Config.nodes.forEach(node => {
 		if (!node.available) return;
@@ -110,11 +110,11 @@ const launchTask = (responsor, param, query, url, data, method, source, ip, port
 	if (resps.length === 0) {
 		if (isDelegator) {
 			let err = new Errors.GalanetError.EmptyClustor();
-			return res({
+			return {
 				ok: false,
 				code: err.code,
 				message: err.message
-			});
+			};
 		}
 		else {
 			resp = Config.nodes.filter(node => node.name === 'local')[0];
@@ -157,8 +157,8 @@ const launchTask = (responsor, param, query, url, data, method, source, ip, port
 	resp.taskInfo.energy = (resp.taskInfo.time / resp.taskInfo.done * 2 + time) / 3;
 	resp.taskInfo.power = resp.taskInfo.energy * (1 + resp.taskInfo.total - resp.taskInfo.done);
 
-	res(result);
-});
+	return result;
+};
 
 const httpClient = (host, port, method, path, param, callback) => new Promise((res, rej) => {
 	var cfg = {
@@ -175,7 +175,7 @@ const httpClient = (host, port, method, path, param, callback) => new Promise((r
 	});
 });
 
-const sendRequest = (node, method, path, message) => new Promise(async res => {
+const sendRequest = async (node, method, path, message) => {
 	var result;
 	try {
 		if (node.method === 'http') {
@@ -196,32 +196,32 @@ const sendRequest = (node, method, path, message) => new Promise(async res => {
 			}
 			else {
 				let err = new Errors.GalanetError.WrongProtocol('错误的请求协议：' + node.method);
-				return res({
+				return {
 					ok: false,
 					code: err.code,
 					message: err.message
-				});
+				};
 			}
 			if (!!err) {
 				console.error(err);
-				return res({
+				return {
 					ok: false,
 					code: err.code || 500,
 					message: err.message
-				});
+				};
 			}
 		}
-		res(result);
+		return result;
 	}
 	catch (err) {
 		console.error(err);
-		res({
+		return {
 			ok: false,
 			code: err.code || 500,
 			message: err.message
-		});
+		};
 	}
-});
+};
 
 const connectNode = node => {
 	var connect;

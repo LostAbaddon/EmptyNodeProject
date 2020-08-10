@@ -1,39 +1,146 @@
+const Path = require('path');
 const FS = require('fs');
+const FSP = FS.promises;
 
+const EventType = Symbol.setSymbols('NewFile', 'NewFolder', 'ModifyFile', 'ModifyFolder', 'DeleteFile', 'DeleteFolder');
 const WatchList = {};
+
+const lookFolder = async path => {
+	var files = [], folders = [], info = {};
+	var list = await FSP.readdir(path);
+	list = list.map(async p => {
+		p = Path.join(path, p);
+		var stat = await FSP.stat(p);
+		if (stat.isDirectory()) {
+			folders.push(p);
+			let [subf, subd, subi] = await lookFolder(p);
+			files.push(...subf);
+			folders.push(...subd);
+			Object.assign(info, subi);
+		}
+		else if (stat.isFile()) {
+			files.push(p);
+			info[p] = stat.mtime.getTime();
+		}
+	});
+	await Promise.all(list);
+	return [files, folders, info];
+};
 
 class Watcher {
 	#folderpath = '';
 	#filemap = {};
+	#info = {};
+	#watchers = {};
 	#onChange = null;
-	constructor (path, files, callback) {
+	#timers = {};
+	files = [];
+	folders = [];
+	constructor (path, callback) {
 		this.#folderpath = path;
 		this.#onChange = callback;
 
-		FS.watch(path, (event, filename) => {
-			console.log('FUCK!!!', filename);
-		});
-
-		this.updateFileInfo(files);
+		this.newWatcher = path => {
+			return (event, filename) => {
+				var targetpath = Path.join(path, filename);
+				var timer = this.#timers[targetpath];
+				if (!!timer) clearTimeout(timer);
+				timer = setTimeout(() => {
+					delete this.#timers[targetpath];
+					this.checkTarget(targetpath);
+				}, 100);
+				this.#timers[targetpath] = timer;
+			}
+		};
 	}
-	async updateFileInfo (files) {
-		if (!files || !Array.is(files)) {
-			files = await _('Utils.getAllContents')(path);
+	async checkTarget (path) {
+		var isFile = this.files.includes(path);
+		var isFolder = this.folders.includes(path);
+		var info = this.#info[path] || 0;
+		var exists = true;
+		var stat, didFile = isFile, didFolder = isFolder;
+		try {
+			stat = await FSP.stat(path);
+			if (stat.isFile()) {
+				didFile = true;
+				didFolder = false;
+			}
+			else if (stat.isDirectory()) {
+				didFile = false;
+				didFolder = true;
+			}
+			else {
+				didFile = false;
+				didFolder = false;
+			}
+			stat = stat.mtime.getTime();
 		}
-		files.forEach(filepath => {
-			this.#filemap[filepath] = 0;
-		});
-		console.log(this.#filemap);
+		catch {
+			exists = false;
+			stat = 0;
+		}
+
+		if (didFile === didFolder && exists) return; // 其它类型文件对象，直接忽略
+
+		if (!exists) { // 删除
+			if (!isFile && !isFolder) return;
+			if (isFile) { // 文件被删除
+				delete this.#info[path];
+				this.files.remove(path);
+				this.#onChange(EventType.DeleteFile, path);
+			}
+			else { // 文件夹被删除
+				if (!!this.#watchers[path]) this.#watchers[path].close();
+				delete this.#watchers[path];
+				this.folders.remove(path);
+				this.#onChange(EventType.DeleteFolder, path);
+			}
+		}
+		else if (didFile) {
+			if (!isFile) { // 新文件
+				this.#info[path] = stat;
+				this.files.push(path);
+				this.#onChange(EventType.NewFile, path);
+			}
+			else if (info !== stat) {
+				this.#info[path] = stat;
+				this.#onChange(EventType.ModifyFile, path);
+			}
+		}
+		else {
+			if (!isFolder) { // 新文件夹
+				this.folders.push(path);
+				this.#watchers[path] = FS.watch(path, this.newWatcher(path));
+				this.#onChange(EventType.NewFolder, path);
+			}
+		}
+	}
+	async update () {
+		if (this.#folderpath.length === 0) return;
+		var [files, folders, info] = await lookFolder(this.#folderpath);
+
+		this.#watchers[this.#folderpath] = FS.watch(this.#folderpath, this.newWatcher(this.#folderpath));
+		folders.forEach(path => this.#watchers[path] = FS.watch(path, this.newWatcher(path)));
+
+		this.files = files;
+		this.folders = folders;
+		this.#info = info;
 	}
 }
 
-const addWatch = (folderPath, files, callback) => {
-	if (!!WatchList[folderPath]) return;
-	WatchList[folderPath] = new Watcher(folderPath, files, callback);
+const addWatch = async (folderPath, files, callback) => {
+	var watcher = WatchList[folderPath];
+	if (!!watcher) return watcher.files;
+	watcher = new Watcher(folderPath, files, callback);
+	WatchList[folderPath] = watcher;
+	await watcher.update();
+	return watcher.files;
 };
 
 _('Utils.Watcher', Watcher);
 _('Utils.watchFolder', addWatch);
+_('Utils.WatchEvents', EventType);
 module.exports = {
+	EventType,
 	add: addWatch
 };
