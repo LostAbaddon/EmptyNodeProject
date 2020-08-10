@@ -20,13 +20,6 @@ module.exports = (options, callback) => {
 		return;
 	}
 
-	// Load Responsors
-	if (!options.api) {
-		callback(new Errors.ConfigError.NoResponsor());
-		return;
-	}
-	ResponsorManager.load(Path.join(process.cwd(), options.api.local), options.api.url);
-
 	// Static Resources
 	if (String.is(options.page)) app.use(KoaStatic(Path.join(process.cwd(), options.page)));
 

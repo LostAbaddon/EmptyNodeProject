@@ -87,7 +87,7 @@ const launchTask = (responsor, param, query, url, data, method, source, ip, port
 	Config.nodes.forEach(node => {
 		if (!node.available) return;
 		if (node.name === 'local') {
-			resps.push(node);
+			if (!isDelegator) resps.push(node);
 			return;
 		}
 
@@ -108,7 +108,17 @@ const launchTask = (responsor, param, query, url, data, method, source, ip, port
 	// 筛选
 	var resp;
 	if (resps.length === 0) {
-		resp = Config.nodes.filter(node => node.name === 'local')[0];
+		if (isDelegator) {
+			let err = new Errors.GalanetError.EmptyClustor();
+			return res({
+				ok: false,
+				code: err.code,
+				message: err.message
+			});
+		}
+		else {
+			resp = Config.nodes.filter(node => node.name === 'local')[0];
+		}
 	}
 	else {
 		resps.sort((ra, rb) => ra.taskInfo.power - rb.taskInfo.power);

@@ -1,7 +1,8 @@
+const Path = require('path');
+
 require("./core");
 loadall(__dirname, "./core/commandline");
 loadall(__dirname, "./kernel");
-
 require('./server/center');
 const webServer = require('./server/web');
 const socketServer = require('./server/socket');
@@ -38,6 +39,22 @@ module.exports = (config, options) => {
 		if (Number.is(param.udp4)) cfg.port.udp4 = param.udp4;
 		if (Number.is(param.udp6)) cfg.port.udp6 = param.udp6;
 		if (Number.is(param.process) || param.process === 'auto') cfg.process = param.process;
+
+		// Load Responsors
+		if (!cfg.api) {
+			let err = new Errors.ConfigError.NoResponsor();
+			console.error(err.message);
+			console.error(setStyle(config.welcome.failed, 'bold red'));
+			process.exit();
+			return;
+		}
+		if (!!cfg.api.local) {
+			cfg.isDelegator = false;
+			ResponsorManager.load(Path.join(process.cwd(), cfg.api.local));
+		}
+		else {
+			cfg.isDelegator = true;
+		}
 
 		var tasks = {}, count = 0, success = 0;
 		var cb = (task, ok) => {

@@ -46,7 +46,7 @@ const init = (server) => {
 				eventLoop.emit(event, data, socket, msg);
 			}
 			else if (!res) {
-				socket.send(event, null, 'Non-API Request');
+				socket.send(event, null, 'Non-Listener Request');
 			}
 		});
 		socket.send = (event, data, err) => {

@@ -5,6 +5,7 @@ const Watcher = require('../kernel/watcher');
 const newLongID = _('Message.newLongID');
 const SubProcessState = Symbol.setSymbols('IDLE', 'WAITING', 'WORKING', 'DIED');
 
+global.isDelegator = false;
 global.isMultiNode = false;
 global.isMultiProcess = false;
 global.isSlaver = false;
@@ -136,10 +137,18 @@ const launchWorkers = (cfg, callback) => {
 };
 
 const setConfig = cfg => {
+	if (Boolean.is(cfg.isDelegator)) isDelegator = cfg.isDelegator;
+
 	if (Array.is(cfg.api.services)) Config.services.push(...cfg.api.services);
 	else if (String.is(cfg.api.services)) Config.services.push(cfg.api.services);
 
-	if (cfg.process === 'auto') {
+	if (isDelegator) {
+		Config.process = 1;
+		launchWorkers(cfg, () => {
+			Galanet.shakehand();
+		});
+	}
+	else if (cfg.process === 'auto') {
 		Config.process = require('os').cpus().length;
 	}
 	else if (Number.is(cfg.process)) {
@@ -252,11 +261,24 @@ const matchResponsor = (url, method, source) => {
 		query = qry;
 		return true;
 	});
+
+	if (isDelegator) {
+		res = res || {_url: url};
+	}
+
 	return [res, query];
 };
 const launchResponsor = (responsor, param, query, url, data, method, source, ip, port) => new Promise(async res => {
 	var result;
-	if (param.isGalanet) { // 如果声称是集群请求
+	if (isDelegator) { // 如果本节点是纯代理节点，则转发给集群友机
+		if (url.indexOf('/galanet/') === 0) {
+			result = await launchLocalResponsor(responsor, param, query, url, data, method, source, ip, port);
+		}
+		else {
+			result = await Galanet.launch(responsor, param, query, url, data, method, source, ip, port);
+		}
+	}
+	else if (param.isGalanet) { // 如果声称是集群请求
 		if (Galanet.check(ip)) { // 如果是集群中友机的请求，则本地处理
 			result = await launchLocalResponsor(responsor, param, query, url, data, method, source, ip, port);
 		}
