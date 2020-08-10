@@ -1,10 +1,10 @@
 const Path = require('path');
-const Galanet = require('./galanet');
 
 require("../core");
 loadall(__dirname, "../kernel");
 const ResponsorManager = require('./responser');
 const newLongID = _('Message.newLongID');
+const Galanet = require('./galanet');
 
 global.isSlaver = true;
 const Config = { path: '' };

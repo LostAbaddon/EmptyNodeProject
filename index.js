@@ -49,11 +49,10 @@ module.exports = (config, options) => {
 			if (success === 0) {
 				console.error(setStyle(config.welcome.failed, 'bold red'));
 				process.exit();
+				return;
 			}
-			else {
-				ResponsorManager.setConfig(cfg);
-				console.log(setStyle(config.welcome.success, 'bold green'));
-			}
+			ResponsorManager.setConfig(cfg);
+			console.log(setStyle(config.welcome.success, 'bold green'));
 		};
 
 		// 启动 Web 服务器

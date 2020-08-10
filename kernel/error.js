@@ -46,6 +46,8 @@ Errors.RuntimeError.SubProcessBrokenDown = new BlackHole("子进程离线", "RTM
 
 Errors.GalanetError = {};
 Errors.GalanetError.ShakehandFailed = new BlackHole("Galanet握手失败", "GLN-00001", "ShakehandFailed");
+Errors.GalanetError.WrongProtocol = new BlackHole("Galanet请求协议错误", "GLN-00002", "WrongProtocol");
+Errors.GalanetError.NotFriendNode = new BlackHole("非Galanet集群友机请求", "GLN-00003", "NotFriendNode");
 
 global.BlackHole = BlackHole;
 global.Errors = Errors;

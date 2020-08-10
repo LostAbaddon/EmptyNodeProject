@@ -101,7 +101,9 @@ const init = (config, callback) => {
 			}
 
 			var event = msg.event, data = msg.data, action = msg.action || 'get';
+			if (Object.isBasicType(data)) data = {content: data};
 			var [res, query] = ResponsorManager.match(event, action, protocol);
+			// console.log(protocol, event, action, !!res);
 			if (!!res) {
 				let result = null;
 				try {

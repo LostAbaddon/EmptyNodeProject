@@ -2,7 +2,6 @@ const Path = require('path');
 const Process = require('child_process');
 const Galanet = require('./galanet');
 const newLongID = _('Message.newLongID');
-
 const SubProcessState = Symbol.setSymbols('IDLE', 'WAITING', 'WORKING', 'DIED');
 
 global.isMultiNode = false;
@@ -20,7 +19,7 @@ const PendingTasks = [];
 
 var MainProcessState = SubProcessState.WORKING;
 
-const forkChildren = cfg => {
+const forkChildren = (cfg, callback) => {
 	var worker = Process.fork(Path.join(__dirname, './subprocess.js'));
 	worker.state = SubProcessState.IDLE;
 	worker.taskQueue = {};
@@ -60,6 +59,7 @@ const forkChildren = cfg => {
 				worker.launchTask(task);
 			}
 			console.log('Slaver Ready: ' + worker.pid);
+			callback();
 		}
 		else if (msg.event === 'jobdone') {
 			if (worker.state === SubProcessState.DIED) return;
@@ -121,8 +121,17 @@ const forkChildren = cfg => {
 
 	Slavers.push(worker);
 };
-const launchWorkers = cfg => {
-	for (let i = 0; i < Config.process; i ++) forkChildren(cfg);
+const launchWorkers = (cfg, callback) => {
+	var total = Config.process, count = Config.process, init = false;
+	for (let i = 0; i < total; i ++) {
+		forkChildren(cfg, () => {
+			if (init) return;
+			count --;
+			if (count > 0) return;
+			init = true;
+			callback();
+		});
+	}
 };
 
 const setConfig = cfg => {
@@ -139,7 +148,9 @@ const setConfig = cfg => {
 
 	if (Config.process > 1) {
 		isMultiNode = true;
-		launchWorkers(cfg);
+		launchWorkers(cfg, () => {
+			Galanet.shakehand();
+		});
 	}
 
 	Galanet.setConfig(cfg);
@@ -237,6 +248,31 @@ const matchResponsor = (url, method, source) => {
 	return [res, query];
 };
 const launchResponsor = (responsor, param, query, url, data, method, source, ip, port) => new Promise(async res => {
+	var result;
+	if (param.isGalanet) { // 如果声称是集群请求
+		if (Galanet.check(ip)) { // 如果是集群中友机的请求，则本地处理
+			result = await launchLocalResponsor(responsor, param, query, url, data, method, source, ip, port);
+		}
+		else { // 不是集群中友机请求，则不作处理
+			let err = new Errors.GalanetError.NotFriendNode(ip + '不是集群友机');
+			result = {
+				ok: false,
+				code: err.code,
+				message: err.message
+			};
+		}
+	}
+	else { // 如果没声称是集群请求
+		if (!Galanet.isInGroup || url.indexOf('/galanet/') === 0) { // 如果不在集群中，或者是集群指令，则本地处理
+			result = await launchLocalResponsor(responsor, param, query, url, data, method, source, ip, port);
+		}
+		else { // 如果在集群中，且不是集群指令，则交给集群中心Galanet处理
+			result = await Galanet.launch(responsor, param, query, url, data, method, source, ip, port);
+		}
+	}
+	res(result);
+});
+const launchLocalResponsor = (responsor, param, query, url, data, method, source, ip, port) => new Promise(async res => {
 	if (Config.process <= 1) {
 		let result;
 		try {
@@ -256,7 +292,7 @@ const launchResponsor = (responsor, param, query, url, data, method, source, ip,
 	var task = {
 		tid: newLongID(),
 		responsor: responsor._url,
-		data: { param, query, url, data, method, source, ip, port },
+		data: { param, query, url, data: {}, method, source, ip, port },
 		stamp: Date.now(),
 		callback: res
 	};
@@ -306,5 +342,6 @@ module.exports = {
 	load: loadResponsors,
 	match: matchResponsor,
 	launch: launchResponsor,
+	launchLocally: launchLocalResponsor,
 	extinct: extinctSlavers
 };

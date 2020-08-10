@@ -22,6 +22,7 @@ const init = (server) => {
 		});
 		socket.on('__message__', async msg => {
 			var event = msg.event, data = msg.data, action = msg.action || 'get';
+			if (Object.isBasicType(data)) data = {content: data};
 			var [res, query] = ResponsorManager.match(event, action, 'socket');
 			if (!!res) {
 				let result = null;
