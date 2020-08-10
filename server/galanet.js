@@ -22,7 +22,7 @@ const setConfig = cfg => {
 	if (!!cfg.api?.services) {
 		Config.services.push(...cfg.api.services);
 	}
-	require('./responser').load(Path.join(__dirname, 'insider'));
+	require('./responser').load(Path.join(__dirname, 'insider'), false);
 	if (isSlaver) return;
 	if (!cfg.node || !cfg.node.length || cfg.node.length <= 0) return;
 

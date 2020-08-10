@@ -1,6 +1,7 @@
 const Path = require('path');
 const Process = require('child_process');
 const Galanet = require('./galanet');
+const Watcher = require('../kernel/watcher');
 const newLongID = _('Message.newLongID');
 const SubProcessState = Symbol.setSymbols('IDLE', 'WAITING', 'WORKING', 'DIED');
 
@@ -155,8 +156,14 @@ const setConfig = cfg => {
 
 	Galanet.setConfig(cfg);
 };
-const loadResponsors = async (path) => {
+const loadResponsors = async (path, monitor=true) => {
 	var list = await _('Utils.getAllContents')(path);
+
+	// 监视目标路径的更新情况
+	// if (monitor) Watcher.add(path, list, (...args) => {
+	// 	console.log('FUCK!!!!', args);
+	// });
+
 	path = path.replace(/[\/\\]+$/, '') + Path.sep;
 	list.forEach(filepath => {
 		var url = filepath.replace(path, '');
