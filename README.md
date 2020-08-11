@@ -15,6 +15,7 @@
 	-	支持 API 模块的热更新
 		+	支持 JS 模块更新（JS、MJS、CJS文件）
 		+	支持 JSON 数据更新
+	-	支持非 API 模块文件的自动加载与热更新（以“_”开头的文件不会作为 WebAPI 接口文件加载，而作为普通 JS 模块加载）
 2.	支持 Http、Https、WebSocket、TCP、UDP、Linuxsock/pipe 连接
 3.	支持多进程响应，并根据各进程的工作情况自动调配任务
 4.	支持简单的多节点集群响应，可根据集群响应速度自动调配任务（Galanet 模块）

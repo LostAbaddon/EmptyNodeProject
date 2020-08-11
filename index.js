@@ -11,13 +11,13 @@ const ResponsorManager = require('./server/responser');
 const CLP = _('CL.CLP');
 const setStyle = _('CL.SetStyle');
 
-// 输出
-module.exports = (config, options) => {
+const createServer = (config, options) => {
 	// 配置命令行工具
 	const clp = CLP({
 		mode: 'process',
 		title: config.name + " v" + config.version,
-	}).describe(setStyle(config.name + " v" + config.version, "bold"));
+	}).describe(setStyle(config.name + " v" + config.version, "bold"))
+	.addOption('--console [console] >> 启用控制台');
 
 	options.forEach(opt => clp.addOption(opt));
 
@@ -39,6 +39,9 @@ module.exports = (config, options) => {
 		if (Number.is(param.udp4)) cfg.port.udp4 = param.udp4;
 		if (Number.is(param.udp6)) cfg.port.udp6 = param.udp6;
 		if (Number.is(param.process) || param.process === 'auto') cfg.process = param.process;
+		if (Boolean.is(param.console) || String.is(param.console)) cfg.console = param.console;
+		console.log(param.console, cfg.console);
+		return;
 
 		// Load Responsors
 		if (!cfg.api) {
@@ -97,7 +100,18 @@ module.exports = (config, options) => {
 				cb('socket', true);
 			}
 		});
+
+		if (!!cfg.console) {
+
+		}
 	});
 
 	return clp;
+};
+const createConsole = () => {};
+
+// 输出
+module.exports = {
+	server: createServer,
+	console: createConsole
 };
