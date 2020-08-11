@@ -1,7 +1,7 @@
 const EventEmitter = require('events');
 const setStyle = _('CL.SetStyle');
-const tcpManager = require('./tcp');
-const udpManager = require('./udp');
+const tcpManager = require('../kernel/tcp');
+const udpManager = require('../kernel/udp');
 const ResponsorManager = require('./responser');
 
 const eventLoop = new EventEmitter();

@@ -3,8 +3,8 @@ const URL = require('url');
 const Net = require('net');
 const Axios = require('axios');
 const Http = require('http');
-const TCP = require('./tcp');
-const UDP = require('./udp');
+const TCP = require('../kernel/tcp');
+const UDP = require('../kernel/udp');
 var ResponsorManager;
 
 const AvailableSource = [ 'tcp', 'udp', 'http' ];
