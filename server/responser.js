@@ -6,6 +6,8 @@ const setStyle = _('CL.SetStyle');
 const newLongID = _('Message.newLongID');
 const ModuleManager = _('Utils.ModuleManager');
 const SubProcessState = Symbol.setSymbols('IDLE', 'WAITING', 'WORKING', 'DIED');
+const HotfixModuleExtName = [ 'js', 'mjs', 'cjs', 'json' ];
+const NonAPIModulePrefix = '_';
 
 global.isDelegator = false;
 global.isMultiNode = false;
@@ -22,6 +24,8 @@ const Slavers = [];
 const PendingTasks = [];
 
 var MainProcessState = SubProcessState.WORKING;
+
+HotfixModuleExtName.forEach((ext, i) => HotfixModuleExtName[i] = '.' + HotfixModuleExtName[i]);
 
 const forkChildren = (cfg, callback) => {
 	var worker = Process.fork(Path.join(__dirname, './subprocess.js'));
@@ -168,6 +172,9 @@ const setConfig = cfg => {
 	Galanet.setConfig(cfg);
 };
 const loadResponseFile = (path, filepath) => {
+	var low = filepath.toLowerCase();
+	if (!HotfixModuleExtName.some(ext => low.substring(low.length - ext.length, low.length) === ext)) return;
+
 	var url = filepath.replace(path, '');
 	var parts = url.split(/[\/\\]+/).filter(f => f.length > 0);
 	var last = parts.last;
@@ -197,7 +204,7 @@ const loadResponseFile = (path, filepath) => {
 	});
 
 	var res = require(filepath);
-	if (!res || !res.responsor) return;
+	if (!res || !res.responsor || (filepath.indexOf(NonAPIModulePrefix) === 0)) return;
 
 	if (!res.methods) {
 		res.methods = null;
@@ -224,6 +231,8 @@ const loadResponseFile = (path, filepath) => {
 	ResponsorList.push(res);
 };
 const unloadResponseFile = (path, filepath) => {
+	ModuleManager.dump(filepath); // 从require的内部库中移除JS模块
+
 	var url = filepath.replace(path, '');
 	var parts = url.split(/[\/\\]+/).filter(f => f.length > 0);
 	var last = parts.last;
@@ -256,7 +265,6 @@ const loadResponsors = async (path, monitor=true) => {
 			else if (event === Watcher.EventType.ModifyFile) {
 				console.log(setStyle('更新API模块：' + filepath, 'yellow'));
 				unloadResponseFile(path, filepath);
-				ModuleManager.dump(filepath);
 				loadResponseFile(path, filepath);
 			}
 			else if (event === Watcher.EventType.DeleteFile) {
