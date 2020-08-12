@@ -125,6 +125,20 @@ const request = async (param, config) => {
 			event: 'stat::' + cmds.stat.item,
 		});
 	}
+	if (!!cmds.network) {
+		let action = null;
+		if (cmds.network.add) action = 'addNode';
+		else if (cmds.network.remove) action = 'removeNode';
+		if (!!action) {
+			cmdList.network = action;
+			request.push({
+				name: 'network',
+				target: action,
+				event: 'network::' + action,
+				data: cmds.network.node
+			});
+		}
+	}
 
 	if (request.length === 0) return;
 	var [reply, err] = await sendRequest(config.ipc, request);
@@ -139,6 +153,31 @@ const request = async (param, config) => {
 			if (item === 'stat') {
 				if (cmdList[item] === 'usage') showStatUsage(reply[item]);
 				else if (cmdList[item] === 'cluster') showStatNetwork(reply[item]);
+			}
+			else if (item === 'network') {
+				let order = cmdList[item], info = reply.network;
+				if (order === 'addNode') {
+					if (info.ok) {
+						console.log(info.data);
+					}
+					else {
+						console.error('添加节点失败（错误号 ' + info.code + '）: ' + info.message);
+					}
+				}
+				else if (order === 'removeNode') {
+					if (info.ok) {
+						console.log(info.data);
+					}
+					else {
+						console.error('移除节点失败（错误号 ' + info.code + '）: ' + info.message);
+					}
+				}
+				else {
+					console.log(cmdList[item] + ':', reply.network);
+				}
+			}
+			else {
+				console.error(item + '/' + cmdList[item] + ': ' + reply[item].message);
 			}
 		}
 	}

@@ -128,6 +128,11 @@ const createConsole = (config) => {
 	.add('stat >> 查看状态')
 	.setParam('<item> >> 查看项')
 	.addOption('--list -l >> 查看可用参数')
+	.add('network >> Galanet 集群操作')
+	.addOption('--add <node> >> 添加集群友机节点')
+	.addOption('--remove <node> >> 移除集群友机节点')
+	.add('shutdown >> 关闭节点')
+	.addOption('--all >> 通知集群节点关闭')
 	.on('command', (param, command) => {
 		if (String.is(param.ipc)) config.ipc = param.ipc;
 		clp.socketPipe = config.ipc;

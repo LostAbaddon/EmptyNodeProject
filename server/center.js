@@ -13,3 +13,11 @@ process.on('console::stat::usage', (unuse, event, callback) => {
 process.on('console::stat::cluster', (unuse, event, callback) => {
 	callback(Galanet.getUsage());
 });
+// 增加节点
+process.on('console::network::addNode', async (node, event, callback) => {
+	callback(...(await Galanet.addNode(node)));
+});
+// 移除节点
+process.on('console::network::removeNode', (node, event, callback) => {
+	callback(...Galanet.removeNode(node));
+});

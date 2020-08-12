@@ -28,40 +28,33 @@ const setConfig = cfg => {
 
 	var nodes = {};
 	cfg.node.forEach(node => {
-		var conn = node.split('/');
-		var source = conn[0];
-		if (AvailableSource.indexOf(source) < 0) return;
-		var ip = conn[1], port = conn[2] * 1, filter = conn.splice(3, conn.length).filter(f => !!f && f.length > 0);
-		if (!Net.isIP(ip) || !Number.is(port)) return;
-		var tag = source + '/' + ip + '/' + port;
-		var info = nodes[tag];
-		if (!info) {
-			info = {
-				method: source,
-				host: ip,
-				port,
-				filter: [],
-				name: tag
-			};
-			nodes[tag] = info;
+		var temp = parseNode(node);
+		if (!temp) return;
+		var info = nodes[temp.name];
+		if (!!info) {
+			temp.filter.forEach(f => {
+				if (info.filter.includes(f)) return;
+				info.filter.push(f);
+			});
 		}
-		if (filter.length > 0) info.filter.push(filter);
+		else {
+			nodes[temp.name] = temp;
+		}
 	});
 	for (let tag in nodes) {
 		Config.nodes.push(nodes[tag]);
 	}
-	Config.nodes.push({ name: 'local', available: true });
-
-	Config.nodes.forEach(node => {
-		node.taskInfo = {
+	Config.nodes.push({
+		name: 'local',
+		available: true,
+		taskInfo: {
 			total: 0,
 			done: 0,
 			time: 0,
-			energy: 1,
-			power: 1
-		};
-		node.failed = 0;
-		if (node.name == 'local') node.taskInfo.power = 0.5;
+			energy: 50,
+			power: 50
+		},
+		failed: 0
 	});
 };
 const shakehand = ip => {
@@ -82,6 +75,12 @@ const reshakehand = ip => {
 	}, 1000);
 };
 const checkRequester = ip => Config.nodes.some(node => node.host === ip);
+const checkService = url => {
+	if (!Config.services || Config.services.length === 0) return true;
+	url = url.split('/')[0];
+	if (!url) return false;
+	return Config.services.includes(url);
+};
 const launchTask = async (responsor, param, query, url, data, method, source, ip, port) => {
 	var resps = [];
 	Config.nodes.forEach(node => {
@@ -92,7 +91,7 @@ const launchTask = async (responsor, param, query, url, data, method, source, ip
 		}
 
 		var parts = url.split('/').filter(f => !!f && f.length > 0);
-		if (node.services.indexOf(parts[0]) < 0) return;
+		if ((!!node.services && node.services.length > 0) && !node.services.includes(parts[0])) return;
 		if (!node.filter || node.filter.length === 0) return resps.push(node);
 		var ok = node.filter.some(filter => {
 			var l = filter.length;
@@ -149,6 +148,14 @@ const launchTask = async (responsor, param, query, url, data, method, source, ip
 			await waitLoop();
 			result = await launchTask(responsor, param, query, url, data, method, source, ip, port);
 		}
+		else if (result.code === Errors.GalanetError.CannotService.code) {
+			let p = url.split('/')[0];
+			if (!!p && !!resp.services) resp.services.remove(p);
+			resp.failed ++;
+			if (resp.failed === 3) Config.nodes.remove(resp);
+			await waitLoop();
+			result = await launchTask(responsor, param, query, url, data, method, source, ip, port);
+		}
 		else {
 			console.error(resp.name + ' error(' + resp.code + '): ' + resp.message);
 		}
@@ -193,6 +200,83 @@ const httpClient = (host, port, method, path, param, callback) => new Promise((r
 		rej(err);
 	});
 });
+
+const parseNode = node => {
+	var conn = node.split('/');
+	var source = conn[0];
+	if (AvailableSource.indexOf(source) < 0) return null;
+	var ip = conn[1], port = conn[2] * 1, filter = conn.splice(3, conn.length).filter(f => !!f && f.length > 0);
+	if (!Net.isIP(ip) || !Number.is(port)) return null;
+	var tag = source + '/' + ip + '/' + port;
+	var info = {
+		method: source,
+		host: ip,
+		port,
+		filter: [],
+		name: tag,
+		taskInfo: {
+			total: 0,
+			done: 0,
+			time: 0,
+			energy: 100,
+			power: 100
+		},
+		services: [],
+		failed: 0,
+		available: false
+	};
+	if (filter.length > 0) info.filter.push(filter);
+
+	return info;
+};
+const addNode = async node => {
+	var info = parseNode(node);
+	if (!info) {
+		return [null, new Errors.GalanetError.UnavailableNodeAddress()];
+	}
+	var last = Config.nodes.filter(node => node.name === info.name);
+	if (last.length > 0) {
+		last = last[0];
+		if (info.filter.length === 0) last.filter = [];
+		else {
+			info.filter.forEach(f => {
+				if (!last.filter.includes(f)) last.filter.push(f);
+			});
+		}
+		if (last.available) return ['节点注册服务已更新'];
+		let err = await connectNode(last);
+		if (!!err) {
+			return [null, err];
+		}
+		else {
+			return ['节点注册服务已更新，并握手成功'];
+		}
+	}
+	else {
+		Config.nodes.push(info);
+		let err = await connectNode(info);
+		if (!!err) {
+			return [null, err];
+		}
+		else {
+			return ['节点已添加，并握手成功'];
+		}
+	}
+};
+const removeNode = node => {
+	var info = parseNode(node);
+	if (!info) {
+		return [null, new Errors.GalanetError.UnavailableNodeAddress()];
+	}
+	var last = Config.nodes.filter(node => node.name === info.name);
+	if (last.length === 0) {
+		return [null, new Errors.GalanetError.NoSuchNode(info.name)];
+	}
+	else {
+		Config.nodes.remove(last[0]);
+		return ['删除节点成功'];
+	}
+};
 
 const sendRequest = async (node, method, path, message) => {
 	var result;
@@ -242,7 +326,7 @@ const sendRequest = async (node, method, path, message) => {
 	}
 };
 
-const connectNode = node => {
+const connectNode = node => new Promise(res => {
 	var connect;
 	if (node.method === 'http') {
 		connect = connectHTTP;
@@ -255,19 +339,20 @@ const connectNode = node => {
 	}
 	else {
 		console.log(node);
-		return;
+		return res(new Errors.GalanetError.WrongProtocol());
 	}
 	connect(node, (data, err) => {
 		if (!!err) {
-			console.error('SHAKEHAND FAILED: ' + err.message);
+			console.error('与节点 ' + node.name + ' 握手失败: ' + err.message);
 			node.available = false;
-			return;
+			return res(err);
 		}
 		node.available = true;
 		node.services = [...data];
 		console.log('连接' + node.name + '成功！');
+		res();
 	});
-};
+});
 const connectHTTP = async (node, callback) => {
 	try {
 		var reply = await httpClient(node.host, node.port, 'get', Config.prefix + '/galanet/shakehand', null);
@@ -313,9 +398,12 @@ const connectUDP = async (node, callback) => {
 
 module.exports = {
 	setConfig,
+	addNode,
+	removeNode,
 	shakehand,
 	reshakehand,
 	check: checkRequester,
+	checkService,
 	launch: launchTask,
 	getUsage,
 	get availableServices () {

@@ -49,7 +49,10 @@ Errors.GalanetError = {};
 Errors.GalanetError.ShakehandFailed = new BlackHole("Galanet握手失败", "GLN-00001", "ShakehandFailed");
 Errors.GalanetError.WrongProtocol = new BlackHole("Galanet请求协议错误", "GLN-00002", "WrongProtocol");
 Errors.GalanetError.NotFriendNode = new BlackHole("非Galanet集群友机请求", "GLN-00003", "NotFriendNode");
-Errors.GalanetError.EmptyClustor = new BlackHole("集群无注册节点", "GLN-00004", "EmptyClustor");
+Errors.GalanetError.CannotService = new BlackHole("非本节点可服务请求", "GLN-00004", "CannotService");
+Errors.GalanetError.EmptyClustor = new BlackHole("集群无注册节点", "GLN-00005", "EmptyClustor");
+Errors.GalanetError.UnavailableNodeAddress = new BlackHole("无法解析的节点地址", "GLN-00006", "UnavailableNodeAddress");
+Errors.GalanetError.NoSuchNode = new BlackHole("当前集群中无指定节点", "GLN-00007", "NoSuchNode");
 
 global.BlackHole = BlackHole;
 global.Errors = Errors;

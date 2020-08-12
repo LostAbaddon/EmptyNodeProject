@@ -334,7 +334,17 @@ const launchResponsor = (responsor, param, query, url, data, method, source, ip,
 	}
 	else if (param.isGalanet) { // 如果声称是集群请求
 		if (Galanet.check(ip)) { // 如果是集群中友机的请求，则本地处理
-			result = await launchLocalResponsor(responsor, param, query, url, data, method, source, ip, port);
+			if (Galanet.checkService(url)) { // 如果是本地注册的请求，则本地处理
+				result = await launchLocalResponsor(responsor, param, query, url, data, method, source, ip, port);
+			}
+			else { // 如果不是本地注册的请求，则不做处理
+				let err = new Errors.GalanetError.CannotService(url + '不是可服务请求类型');
+				result = {
+					ok: false,
+					code: err.code,
+					message: err.message
+				};
+			}
 		}
 		else { // 不是集群中友机请求，则不作处理
 			let err = new Errors.GalanetError.NotFriendNode(ip + '不是集群友机');

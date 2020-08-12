@@ -42,14 +42,25 @@ class Watcher {
 
 		this.newWatcher = path => {
 			return (event, filename) => {
-				var targetpath = Path.join(path, filename);
-				var timer = this.#timers[targetpath];
-				if (!!timer) clearTimeout(timer);
-				timer = setTimeout(() => {
-					delete this.#timers[targetpath];
-					this.checkTarget(targetpath);
-				}, 100);
-				this.#timers[targetpath] = timer;
+				if (!filename) {
+					let timer = this.#timers[path];
+					if (!!timer) clearTimeout(timer);
+					timer = setTimeout(() => {
+						delete this.#timers[path];
+						this.checkFolder(path);
+					}, 100);
+					this.#timers[path] = timer;
+				}
+				else {
+					let targetpath = Path.join(path, filename);
+					let timer = this.#timers[targetpath];
+					if (!!timer) clearTimeout(timer);
+					timer = setTimeout(() => {
+						delete this.#timers[targetpath];
+						this.checkTarget(targetpath);
+					}, 100);
+					this.#timers[targetpath] = timer;
+				}
 			}
 		};
 	}
@@ -114,6 +125,61 @@ class Watcher {
 				this.#onChange(EventType.NewFolder, path);
 			}
 		}
+	}
+	async checkFolder (path) {
+		var files = await FSP.readdir(path);
+		await Promise.all(files.map(async file => {
+			file = Path.join(path, file);
+			var oldFile = this.files.includes(file);
+			var oldFolder = this.folders.includes(file);
+			var oldExists = oldFile || oldFolder;
+			var oldTime = this.#info[file];
+			var stat, newFile, newFolder, newTime;
+			try {
+				stat = await FSP.stat(file);
+				newFile = stat.isFile();
+				newFolder = stat.isDirectory();
+				if (!newFile && !newFolder) return;
+				newTime = stat.mtime.getTime();
+			}
+			catch {
+				newFile = false;
+				newFolder = false;
+				newTime = 0;
+			}
+			var newExists = newFile || newFolder;
+
+			if (!oldExists && !newExists) return;
+			if (oldExists && !newExists) {
+				if (oldFile) { // 文件被删除
+					delete this.#info[file];
+					this.files.remove(file);
+					this.#onChange(EventType.DeleteFile, file);
+				}
+				else { // 文件夹被删除
+					if (!!this.#watchers[file]) this.#watchers[file].close();
+					delete this.#watchers[file];
+					this.folders.remove(file);
+					this.#onChange(EventType.DeleteFolder, file);
+				}
+			}
+			else if (!oldExists && newExists) {
+				if (newFile) { // 新文件
+					this.#info[file] = newTime;
+					this.files.push(file);
+					this.#onChange(EventType.NewFile, file);
+				}
+				else {
+					this.folders.push(file);
+					this.#watchers[file] = FS.watch(file, this.newWatcher(file));
+					this.#onChange(EventType.NewFolder, file);
+				}
+			}
+			else if (oldFile && (newTime !== oldTime)) {
+				this.#info[file] = newTime;
+				this.#onChange(EventType.ModifyFile, file);
+			}
+		}));
 	}
 	async update () {
 		if (this.#folderpath.length === 0) return;
