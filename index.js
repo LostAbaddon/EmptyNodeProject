@@ -1,15 +1,16 @@
 const Path = require('path');
-
 require("./core");
 loadall(__dirname, "./core/commandline");
 loadall(__dirname, "./kernel");
 require('./server/center');
 const webServer = require('./server/web');
 const socketServer = require('./server/socket');
+const consoleServer = require('./server/console');
 const ResponsorManager = require('./server/responser');
-
 const CLP = _('CL.CLP');
 const setStyle = _('CL.SetStyle');
+
+const DefailtIPC = '/tmp/console.ipc';
 
 const createServer = (config, options) => {
 	// 配置命令行工具
@@ -40,8 +41,6 @@ const createServer = (config, options) => {
 		if (Number.is(param.udp6)) cfg.port.udp6 = param.udp6;
 		if (Number.is(param.process) || param.process === 'auto') cfg.process = param.process;
 		if (Boolean.is(param.console) || String.is(param.console)) cfg.console = param.console;
-		console.log(param.console, cfg.console);
-		return;
 
 		// Load Responsors
 		if (!cfg.api) {
@@ -102,13 +101,43 @@ const createServer = (config, options) => {
 		});
 
 		if (!!cfg.console) {
-
+			count ++;
+			tasks.console = false;
+			let ipc = cfg.console;
+			if (!String.is(ipc)) ipc = DefailtIPC;
+			consoleServer.create(clp, ipc, err => {
+				if (err instanceof Error) {
+					console.error(err.message);
+					cb('console', false);
+				}
+				else {
+					cb('console', true);
+				}
+			});
 		}
 	});
 
 	return clp;
 };
-const createConsole = () => {};
+const createConsole = (config) => {
+	const clp = CLP({
+		mode: 'process',
+		title: config.name + " v" + config.version,
+	}).describe(setStyle(config.name + " v" + config.version, "bold"))
+	.addOption('--ipc <ipc> >> 指定通讯通道')
+	.add('stat >> 查看状态')
+	.setParam('<item> >> 查看项')
+	.addOption('--list -l >> 查看可用参数')
+	.on('command', (param, command) => {
+		if (String.is(param.ipc)) config.ipc = param.ipc;
+		clp.socketPipe = config.ipc;
+		consoleServer.request(param, config);
+	});
+
+	clp.sendRequest = request => consoleServer.sendRequest(clp.socketPipe, request);
+
+	return clp;
+};
 
 // 输出
 module.exports = {

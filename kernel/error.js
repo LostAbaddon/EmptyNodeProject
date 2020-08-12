@@ -36,9 +36,10 @@ Errors.ConfigError.NoResponsor = new BlackHole("无 API 响应模块", "CFG-0000
 Errors.ServerError = {};
 Errors.ServerError.UnavailableHost = new BlackHole("指定IP错误", "SVR-00001", "UnavailableHost");
 Errors.ServerError.UnavailablePort = new BlackHole("指定端口错误", "SVR-00002", "UnavailablePort");
-Errors.ServerError.CreateServerFailed = new BlackHole("服务器初始化错误", "SVR-00003", "CreateServerFailed");
+Errors.ServerError.CreateServerFailed = new BlackHole("服务器初始化失败", "SVR-00003", "CreateServerFailed");
 Errors.ServerError.ConnectRemoteFailed = new BlackHole("连接节点失败", "SVR-00004", "ConnectRemoteFailed");
 Errors.ServerError.ConnectionBroken = new BlackHole("连接被中断", "SVR-00005", "ConnectionBroken");
+Errors.ServerError.CreateConsoleFailed = new BlackHole("命令行控制台初始化失败", "SVR-00006", "CreateConsoleFailed");
 
 Errors.RuntimeError = {};
 Errors.RuntimeError.MainProcessExited = new BlackHole("主进程关闭", "RTM-00001", "MainProcessExited");

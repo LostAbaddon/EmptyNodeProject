@@ -131,9 +131,7 @@ const createServer = (host, port, callback, onMessage, onError) => new Promise(r
 					data = message;
 				}
 				if (!!onMessage) onMessage(data, socket, reply => {
-					if (!packages) return;
-					packages.push(...packageMessage(reply, DefaultConfig.chunkSize, mid));
-					send();
+					socket.sendData(reply, mid);
 				});
 			});
 		});
@@ -149,6 +147,11 @@ const createServer = (host, port, callback, onMessage, onError) => new Promise(r
 			});
 		};
 
+		socket.sendData = (data, id) => {
+			if (!packages) return;
+			packages.push(...packageMessage(data, DefaultConfig.chunkSize, id));
+			send();
+		};
 		socket.suicide = () => {
 			cancel();
 			removePipes(socket);
@@ -245,7 +248,7 @@ const createClient = (host, port, message, callback, persist=false) => new Promi
 			return;
 		}
 		callback(null, err);
-		res([null, e]);
+		res([null, err]);
 	})
 	.on('connect', () => {
 		sendData(message, mid);

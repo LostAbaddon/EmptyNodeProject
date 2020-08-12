@@ -10,7 +10,6 @@ const HotfixModuleExtName = [ 'js', 'mjs', 'cjs', 'json' ];
 const NonAPIModulePrefix = '_';
 
 global.isDelegator = false;
-global.isMultiNode = false;
 global.isMultiProcess = false;
 global.isSlaver = false;
 global.ResponsorMap = {};
@@ -19,6 +18,13 @@ global.ResponsorList = [];
 const Config = {
 	process: 1,
 	services: []
+};
+const TaskInfo = {
+	total: 0,
+	done: 0,
+	spent: 0,
+	energy: 0,
+	power: 0
 };
 const Slavers = [];
 const PendingTasks = [];
@@ -163,7 +169,7 @@ const setConfig = cfg => {
 	}
 
 	if (Config.process > 1) {
-		isMultiNode = true;
+		isMultiProcess = true;
 		launchWorkers(cfg, () => {
 			Galanet.shakehand();
 		});
@@ -352,6 +358,8 @@ const launchResponsor = (responsor, param, query, url, data, method, source, ip,
 const launchLocalResponsor = (responsor, param, query, url, data, method, source, ip, port) => new Promise(async res => {
 	if (Config.process <= 1) {
 		let result;
+		TaskInfo.total ++;
+		let time = Date.now();
 		try {
 			result = await responsor(param, query, url, data, method, source, ip, port);
 		}
@@ -363,6 +371,11 @@ const launchLocalResponsor = (responsor, param, query, url, data, method, source
 				message: err.message
 			};
 		}
+		TaskInfo.done ++;
+		time = Date.now() - time;
+		TaskInfo.spent += time;
+		TaskInfo.energy = TaskInfo.spent / TaskInfo.done;
+		TaskInfo.power = (TaskInfo.energy * 2 + time) / 3;
 		return res(result);
 	}
 
@@ -413,6 +426,39 @@ const destroyMonde = () => {
 	}
 	process.exit();
 };
+const getUsage = () => {
+	var result = {};
+	result.isDelegator = global.isDelegator;
+	result.isInGroup = Galanet.isInGroup;
+	result.processCount = Config.process < 1 ? 1 : Config.process;
+	result.pending = PendingTasks.length;
+	result.workers = [];
+	if (isMultiProcess) {
+		Slavers.forEach(worker => {
+			var info = {
+				alive: !worker.killed,
+				total: worker.taskCount,
+				done: worker.taskDone,
+				spent: worker.taskTimespent,
+				energy: worker.taskEnergy,
+				power: worker.taskPower
+			};
+			result.workers.push(info);
+		});
+	}
+	else {
+		let info = {
+			alive: true,
+			total: TaskInfo.total,
+			done: TaskInfo.done,
+			spent: TaskInfo.spent,
+			energy: TaskInfo.energy,
+			power: TaskInfo.power
+		};
+		result.workers.push(info);
+	}
+	return result;
+};
 
 module.exports = {
 	setConfig,
@@ -420,5 +466,6 @@ module.exports = {
 	match: matchResponsor,
 	launch: launchResponsor,
 	launchLocally: launchLocalResponsor,
-	extinct: extinctSlavers
+	extinct: extinctSlavers,
+	getUsage
 };

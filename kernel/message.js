@@ -32,7 +32,7 @@ const packageMessage = (msg, size, id) => {
 		msg = Uint8Array.fromString(msg);
 		msg = Buffer.from(msg);
 	}
-	var len = msg.byteLength;
+	var len = msg.byteLength, left = len;
 	var count = Math.ceil(len / size);
 	var packs = [];
 	id = id || newShortID();
@@ -40,13 +40,16 @@ const packageMessage = (msg, size, id) => {
 		let start = size * i;
 		let end = start + size;
 		if (end > len) end = len;
-		let buf = Buffer.alloc(end - start + 10);
+		let buf = Buffer.alloc(end - start + 13);
 		buf[0] = id[0];
 		buf[1] = id[1];
 		buf[2] = id[2];
 		buf.writeUInt16BE(count, 4);
-		buf.writeUInt16BE(count, 7);
-		msg.copy(buf, 10, start, end);
+		buf.writeUInt16BE(i, 7);
+		let l = left > size ? size : left;
+		left -= l;
+		buf.writeUInt16BE(l, 10);
+		msg.copy(buf, 13, start, end);
 		packs.push(buf);
 	}
 	return packs;
@@ -59,8 +62,11 @@ const unpackMessage = msg => {
 	count = count.readUInt16BE(0, 2);
 	var index = msg.subarray(7, 9);
 	index = index.readUInt16BE(0, 2);
-	var data = Buffer.alloc(len - 10);
-	msg.copy(data, 0, 10, len);
+	var l = msg.subarray(10, 12);
+	l = l.readUInt16BE(0, 2);
+	if (len - 13 < l) l = len - 13;
+	var data = Buffer.alloc(l);
+	msg.copy(data, 0, 13, len);
 	return {
 		id: fid,
 		count, index,

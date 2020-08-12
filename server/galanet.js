@@ -153,10 +153,29 @@ const launchTask = async (responsor, param, query, url, data, method, source, ip
 			console.error(resp.name + ' error(' + resp.code + '): ' + resp.message);
 		}
 	}
+	else {
+		resp.failed = 0;
+	}
 	resp.taskInfo.time += time;
 	resp.taskInfo.energy = (resp.taskInfo.time / resp.taskInfo.done * 2 + time) / 3;
 	resp.taskInfo.power = resp.taskInfo.energy * (1 + resp.taskInfo.total - resp.taskInfo.done);
 
+	return result;
+};
+const getUsage = () => {
+	var result = {};
+	result.pending = 0;
+	result.nodes = [];
+	Config.nodes.forEach(worker => {
+		var info = {
+			name: worker.name,
+			available: !!worker.available,
+			failed: worker.failed,
+			filter: !!worker.filter ? worker.filter.map(f => f.join('/')) : [],
+			tasks: worker.taskInfo
+		};
+		result.nodes.push(info);
+	});
 	return result;
 };
 
@@ -298,10 +317,11 @@ module.exports = {
 	reshakehand,
 	check: checkRequester,
 	launch: launchTask,
+	getUsage,
 	get availableServices () {
 		return Config.services;
 	},
 	get isInGroup () {
-		return Config.nodes.length > 1;
+		return Config.nodes.filter(n => n.available).length > 1;
 	}
 };

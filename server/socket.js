@@ -96,14 +96,17 @@ const init = (config, callback) => {
 	else {
 		eventLoop.on('message', async (protocol, host, port, msg, socket, resp) => {
 			if (!msg || !msg.event) {
-				resp("ERROR:NOEVENT");
+				resp({
+					ok: false,
+					code: 500,
+					message: "ERROR:NOEVENT"
+				});
 				return;
 			}
 
 			var event = msg.event, data = msg.data, action = msg.action || 'get';
 			if (Object.isBasicType(data)) data = {content: data};
 			var [res, query] = ResponsorManager.match(event, action, protocol);
-			// console.log(protocol, event, action, !!res);
 			if (!!res) {
 				let result = null;
 				try {
