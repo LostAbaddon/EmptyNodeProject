@@ -324,6 +324,7 @@ const matchResponsor = (url, method, source) => {
 };
 const launchResponsor = (responsor, param, query, url, data, method, source, ip, port) => new Promise(async res => {
 	var result;
+	if (url.substr(0, 1) !== '/') url = '/' + url;
 	if (url.indexOf('/galanet/') === 0) {
 		if (Galanet.check(ip)) {
 			result = await launchLocalResponsor(responsor, param, query, url, data, method, source, ip, port);
