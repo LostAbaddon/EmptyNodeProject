@@ -123,7 +123,7 @@ const init = (config, callback) => {
 				}
 			}
 			else {
-				let err = new Errors.ConfigError.NoResponsor();
+				let err = new Errors.ConfigError.NoResponsor('URL: ' + event);
 				console.error(err);
 				resp({
 					ok: false,

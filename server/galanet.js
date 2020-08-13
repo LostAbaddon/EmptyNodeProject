@@ -5,6 +5,7 @@ const Axios = require('axios');
 const Http = require('http');
 const TCP = require('../kernel/tcp');
 const UDP = require('../kernel/udp');
+const setStyle = _('CL.SetStyle');
 var ResponsorManager;
 
 const AvailableSource = [ 'tcp', 'udp', 'http' ];
@@ -13,6 +14,7 @@ const Config = {
 	nodes: [],
 	services: []
 }
+const Pending = [];
 const Reshakings = {};
 
 const setConfig = cfg => {
@@ -77,12 +79,13 @@ const reshakehand = ip => {
 const checkRequester = ip => Config.nodes.some(node => node.host === ip);
 const checkService = url => {
 	if (!Config.services || Config.services.length === 0) return true;
-	url = url.split('/')[0];
+	url = url.split('/').filter(f => f.trim().length > 0)[0];
 	if (!url) return false;
 	return Config.services.includes(url);
 };
-const launchTask = async (responsor, param, query, url, data, method, source, ip, port) => {
+const launchTask = (responsor, param, query, url, data, method, source, ip, port, callback) => new Promise(async res => {
 	var resps = [];
+	// 筛选符合注册服务要求的节点
 	Config.nodes.forEach(node => {
 		if (!node.available) return;
 		if (node.name === 'local') {
@@ -104,25 +107,35 @@ const launchTask = async (responsor, param, query, url, data, method, source, ip
 		if (ok) resps.push(node);
 	});
 
-	// 筛选
-	var resp;
+	// 若无适格节点
 	if (resps.length === 0) {
 		if (isDelegator) {
 			let err = new Errors.GalanetError.EmptyClustor();
-			return {
+			let result = {
 				ok: false,
 				code: err.code,
 				message: err.message
 			};
+			if (!!callback) callback(result);
+			return res(result);
 		}
 		else {
-			resp = Config.nodes.filter(node => node.name === 'local')[0];
+			resps = [Config.nodes.filter(node => node.name === 'local')[0]];
 		}
 	}
-	else {
-		resps.sort((ra, rb) => ra.taskInfo.power - rb.taskInfo.power);
-		resp = resps[0];
+
+	// 筛选任务未满的节点
+	resps = resps.filter(resp => resp.taskInfo.total <= resp.taskInfo.done * 2);
+	if (resps.length === 0) {
+		let cb = result => {
+			if (!!callback) callback(result);
+			res(result);
+		};
+		Pending.push([responsor, param, query, url, data, method, source, ip, port, cb]);
+		return;
 	}
+	resps.sort((ra, rb) => ra.taskInfo.power - rb.taskInfo.power);
+	var resp = resps[0];
 
 	var time = Date.now(), result;
 	resp.taskInfo.total ++;
@@ -143,12 +156,14 @@ const launchTask = async (responsor, param, query, url, data, method, source, ip
 	if (!result.ok) {
 		time = 1.2 * time + 20;
 		if (result.code === Errors.GalanetError.NotFriendNode.code) {
+			console.error(setStyle(resp.name + ' : not friend node (' + url + ')', 'red'));
 			resp.failed ++;
 			if (resp.failed === 3) Config.nodes.remove(resp);
 			await waitLoop();
 			result = await launchTask(responsor, param, query, url, data, method, source, ip, port);
 		}
 		else if (result.code === Errors.GalanetError.CannotService.code) {
+			console.error(setStyle(resp.name + ' : cannot service (' + url + ')', 'red'));
 			let p = url.split('/')[0];
 			if (!!p && !!resp.services) resp.services.remove(p);
 			resp.failed ++;
@@ -157,7 +172,7 @@ const launchTask = async (responsor, param, query, url, data, method, source, ip
 			result = await launchTask(responsor, param, query, url, data, method, source, ip, port);
 		}
 		else {
-			console.error(resp.name + ' error(' + resp.code + '): ' + resp.message);
+			console.error(setStyle(resp.name + ' error(' + resp.code + '): ' + resp.message, 'red'));
 		}
 	}
 	else {
@@ -167,11 +182,15 @@ const launchTask = async (responsor, param, query, url, data, method, source, ip
 	resp.taskInfo.energy = (resp.taskInfo.time / resp.taskInfo.done * 2 + time) / 3;
 	resp.taskInfo.power = resp.taskInfo.energy * (1 + resp.taskInfo.total - resp.taskInfo.done);
 
-	return result;
-};
+	if (!!callback) callback(result);
+	res(result);
+
+	var task = Pending.shift();
+	if (!!task) launchTask(...task);
+});
 const getUsage = () => {
 	var result = {};
-	result.pending = 0;
+	result.pending = Pending.length;
 	result.nodes = [];
 	Config.nodes.forEach(worker => {
 		var info = {

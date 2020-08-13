@@ -60,7 +60,7 @@ module.exports = (options, callback) => {
 				code: 403,
 				ok: false
 			};
-			console.error('result: Non-API Request');
+			console.error('result: Non-API Request (' + path + ')');
 			return await next();
 		}
 		path = path.replace(apiPrefix, '/');
@@ -76,7 +76,7 @@ module.exports = (options, callback) => {
 				code: 404,
 				ok: false
 			};
-			console.error('result: Responsor Not Found');
+			console.error('result: Responsor Not Found (' + path + ')');
 			return await next();
 		}
 
