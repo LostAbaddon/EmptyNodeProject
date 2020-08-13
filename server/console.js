@@ -84,6 +84,7 @@ const createServer = (host, ipc, callback) => {
 		}
 	});
 };
+
 const onMessage = (event, callback) => {
 	process.on(ConsoleEventTag + event, callback);
 };
@@ -93,10 +94,11 @@ const onceMessage = (event, callback) => {
 const offMessage = (event, callback) => {
 	process.off(ConsoleEventTag + event, callback);
 };
+
 const broadcast = msg => {
 	sockets.forEach(socket => socket.sendData(msg));
 };
-const sendRequest = (ipc, commands, callback) => new Promise(res => {
+const request = (ipc, commands, callback) => new Promise(res => {
 	pipeServer.client(ipc, 0, commands, (reply, err) => {
 		if (!!callback) callback(reply, err);
 		res([reply, err]);
@@ -104,8 +106,8 @@ const sendRequest = (ipc, commands, callback) => new Promise(res => {
 });
 
 // 客户端
-const request = async (param, config) => {
-	var cmds = {}, request = [], cmdList = {};
+const deal = async (param, config) => {
+	var cmds = {}, req = [], cmdList = {};
 	param.mission.forEach(m => {
 		if (m.value?.list) {
 			console.log(setStyle(m.name + ' 可用参数：', 'bold'));
@@ -119,7 +121,7 @@ const request = async (param, config) => {
 
 	if (!!cmds.stat && !!cmds.stat.item) {
 		cmdList.stat = cmds.stat.item;
-		request.push({
+		req.push({
 			name: 'stat',
 			target: cmds.stat.item,
 			event: 'stat::' + cmds.stat.item,
@@ -131,7 +133,7 @@ const request = async (param, config) => {
 		else if (cmds.network.remove) action = 'removeNode';
 		if (!!action) {
 			cmdList.network = action;
-			request.push({
+			req.push({
 				name: 'network',
 				target: action,
 				event: 'network::' + action,
@@ -139,9 +141,19 @@ const request = async (param, config) => {
 			});
 		}
 	}
+	if (!!cmds.shutdown) {
+		let isAll = !!cmds.shutdown.all;
+		cmdList.shutdown = isAll;
+		req.push({
+			name: 'shutdown',
+			target: 'shutdown',
+			event: 'shutdown',
+			data: isAll
+		});
+	}
 
-	if (request.length === 0) return;
-	var [reply, err] = await sendRequest(config.ipc, request);
+	if (req.length === 0) return;
+	var [reply, err] = await request(config.ipc, req);
 	if (!!err) {
 		console.error(err.message || err);
 	}
@@ -150,34 +162,43 @@ const request = async (param, config) => {
 	}
 	else {
 		for (let item in reply) {
+			reply = reply[item];
 			if (item === 'stat') {
-				if (cmdList[item] === 'usage') showStatUsage(reply[item]);
-				else if (cmdList[item] === 'cluster') showStatNetwork(reply[item]);
+				if (cmdList[item] === 'usage') showStatUsage(reply);
+				else if (cmdList[item] === 'cluster') showStatNetwork(reply);
 			}
 			else if (item === 'network') {
-				let order = cmdList[item], info = reply.network;
+				let order = cmdList[item];
 				if (order === 'addNode') {
-					if (info.ok) {
-						console.log(info.data);
+					if (reply.ok) {
+						console.log(reply.data);
 					}
 					else {
-						console.error('添加节点失败（错误号 ' + info.code + '）: ' + info.message);
+						console.error('添加节点失败（错误号 ' + reply.code + '）: ' + reply.message);
 					}
 				}
 				else if (order === 'removeNode') {
-					if (info.ok) {
-						console.log(info.data);
+					if (reply.ok) {
+						console.log(reply.data);
 					}
 					else {
-						console.error('移除节点失败（错误号 ' + info.code + '）: ' + info.message);
+						console.error('移除节点失败（错误号 ' + reply.code + '）: ' + reply.message);
 					}
 				}
 				else {
-					console.log(cmdList[item] + ':', reply.network);
+					console.log(cmdList[item] + ':', reply);
+				}
+			}
+			else if (item === 'shutdown') {
+				if (reply.ok) {
+					console.log(reply.data);
+				}
+				else {
+					console.error('关闭失败（错误号 ' + reply.code + '）：' + reply.message);
 				}
 			}
 			else {
-				console.error(item + '/' + cmdList[item] + ': ' + reply[item].message);
+				console.error(item + '/' + cmdList[item] + ': ' + reply.message);
 			}
 		}
 	}
@@ -241,6 +262,6 @@ module.exports = {
 	once: onceMessage,
 	off: offMessage,
 	broadcast,
-	request,
-	sendRequest
+	deal,
+	request
 };

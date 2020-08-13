@@ -136,7 +136,7 @@ const createConsole = (config) => {
 	.on('command', (param, command) => {
 		if (String.is(param.ipc)) config.ipc = param.ipc;
 		clp.socketPipe = config.ipc;
-		consoleServer.request(param, config);
+		consoleServer.deal(param, config);
 	});
 
 	clp.sendRequest = request => consoleServer.sendRequest(clp.socketPipe, request);

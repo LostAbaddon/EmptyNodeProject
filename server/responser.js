@@ -324,30 +324,12 @@ const matchResponsor = (url, method, source) => {
 };
 const launchResponsor = (responsor, param, query, url, data, method, source, ip, port) => new Promise(async res => {
 	var result;
-	if (isDelegator) { // 如果本节点是纯代理节点，则转发给集群友机
-		if (url.indexOf('/galanet/') === 0) {
+	if (url.indexOf('/galanet/') === 0) {
+		if (Galanet.check(ip)) {
 			result = await launchLocalResponsor(responsor, param, query, url, data, method, source, ip, port);
 		}
 		else {
-			result = await Galanet.launch(responsor, param, query, url, data, method, source, ip, port);
-		}
-	}
-	else if (param.isGalanet) { // 如果声称是集群请求
-		if (Galanet.check(ip)) { // 如果是集群中友机的请求，则本地处理
-			if (Galanet.checkService(url)) { // 如果是本地注册的请求，则本地处理
-				result = await launchLocalResponsor(responsor, param, query, url, data, method, source, ip, port);
-			}
-			else { // 如果不是本地注册的请求，则不做处理
-				let err = new Errors.GalanetError.CannotService(url + '不是可服务请求类型');
-				result = {
-					ok: false,
-					code: err.code,
-					message: err.message
-				};
-			}
-		}
-		else { // 不是集群中友机请求，则不作处理
-			let err = new Errors.GalanetError.NotFriendNode(ip + '不是集群友机');
+			let err = new Errors.GalanetError.Unauthorized();
 			result = {
 				ok: false,
 				code: err.code,
@@ -355,12 +337,40 @@ const launchResponsor = (responsor, param, query, url, data, method, source, ip,
 			};
 		}
 	}
-	else { // 如果没声称是集群请求
-		if (!Galanet.isInGroup || url.indexOf('/galanet/') === 0) { // 如果不在集群中，或者是集群指令，则本地处理
-			result = await launchLocalResponsor(responsor, param, query, url, data, method, source, ip, port);
-		}
-		else { // 如果在集群中，且不是集群指令，则交给集群中心Galanet处理
+	else {
+		if (isDelegator) { // 如果本节点是纯代理节点，则转发给集群友机
 			result = await Galanet.launch(responsor, param, query, url, data, method, source, ip, port);
+		}
+		else if (!!param && param.isGalanet) { // 如果声称是集群请求
+			if (Galanet.check(ip)) { // 如果是集群中友机的请求，则本地处理
+				if (Galanet.checkService(url)) { // 如果是本地注册的请求，则本地处理
+					result = await launchLocalResponsor(responsor, param, query, url, data, method, source, ip, port);
+				}
+				else { // 如果不是本地注册的请求，则不做处理
+					let err = new Errors.GalanetError.CannotService(url + '不是可服务请求类型');
+					result = {
+						ok: false,
+						code: err.code,
+						message: err.message
+					};
+				}
+			}
+			else { // 不是集群中友机请求，则不作处理
+				let err = new Errors.GalanetError.NotFriendNode(ip + '不是集群友机');
+				result = {
+					ok: false,
+					code: err.code,
+					message: err.message
+				};
+			}
+		}
+		else { // 如果没声称是集群请求
+			if (!Galanet.isInGroup) {
+				result = await launchLocalResponsor(responsor, param, query, url, data, method, source, ip, port);
+			}
+			else { // 如果在集群中，且不是集群指令，则交给集群中心Galanet处理
+				result = await Galanet.launch(responsor, param, query, url, data, method, source, ip, port);
+			}
 		}
 	}
 	res(result);

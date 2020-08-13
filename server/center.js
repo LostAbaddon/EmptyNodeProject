@@ -21,3 +21,25 @@ process.on('console::network::addNode', async (node, event, callback) => {
 process.on('console::network::removeNode', (node, event, callback) => {
 	callback(...Galanet.removeNode(node));
 });
+// 关闭系统
+process.on('console::shutdown', async (isAll, event, callback) => {
+	var msg = '';
+	if (isAll) {
+		let count = await Galanet.shutdownAll();
+		msg = '已通知 ' + count + ' 个集群友机离线';
+		console.log(msg);
+		msg = '已离线，并' + msg;
+	}
+	else {
+		msg = '已离线';
+	}
+	setTimeout(() => {
+		if (isSlaver) {
+			process.send({ event: 'extinct' });
+		}
+		else {
+			Responsor.extinct();
+		}
+	}, 100);
+	callback(msg);
+});

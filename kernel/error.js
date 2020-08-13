@@ -53,6 +53,7 @@ Errors.GalanetError.CannotService = new BlackHole("非本节点可服务请求",
 Errors.GalanetError.EmptyClustor = new BlackHole("集群无注册节点", "GLN-00005", "EmptyClustor");
 Errors.GalanetError.UnavailableNodeAddress = new BlackHole("无法解析的节点地址", "GLN-00006", "UnavailableNodeAddress");
 Errors.GalanetError.NoSuchNode = new BlackHole("当前集群中无指定节点", "GLN-00007", "NoSuchNode");
+Errors.GalanetError.Unauthorized = new BlackHole("无权限调用本接口", "GLN-00008", "Unauthorized");
 
 global.BlackHole = BlackHole;
 global.Errors = Errors;

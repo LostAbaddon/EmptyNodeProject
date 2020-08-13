@@ -278,6 +278,17 @@ const removeNode = node => {
 	}
 };
 
+const shutdownAll = () => new Promise(async res => {
+	if (Config.nodes.length === 0) return res(0);
+	var told = 0;
+	await Promise.all(Config.nodes.map(async node => {
+		if (!node.available) return;
+		await sendRequest(node, 'put', '/galanet/shutdown');
+		told ++;
+	}));
+	res(told);
+});
+
 const sendRequest = async (node, method, path, message) => {
 	var result;
 	try {
@@ -406,6 +417,7 @@ module.exports = {
 	checkService,
 	launch: launchTask,
 	getUsage,
+	shutdownAll,
 	get availableServices () {
 		return Config.services;
 	},

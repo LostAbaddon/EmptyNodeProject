@@ -124,6 +124,9 @@ class Watcher {
 				this.#watchers[path] = FS.watch(path, this.newWatcher(path));
 				this.#onChange(EventType.NewFolder, path);
 			}
+			else {
+				this.#onChange(EventType.ModifyFolder, path);
+			}
 		}
 	}
 	async checkFolder (path) {
@@ -175,9 +178,14 @@ class Watcher {
 					this.#onChange(EventType.NewFolder, file);
 				}
 			}
-			else if (oldFile && (newTime !== oldTime)) {
-				this.#info[file] = newTime;
-				this.#onChange(EventType.ModifyFile, file);
+			else if (newTime !== oldTime) {
+				if (oldFile) {
+					this.#info[file] = newTime;
+					this.#onChange(EventType.ModifyFile, file);
+				}
+				else {
+					this.#onChange(EventType.ModifyFolder, file);
+				}
 			}
 		}));
 	}
