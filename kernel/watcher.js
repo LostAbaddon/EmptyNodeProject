@@ -210,11 +210,23 @@ const addWatch = async (folderPath, files, callback) => {
 	await watcher.update();
 	return watcher.files;
 };
+const watchFile = (filepath, callback) => {
+	var timer;
+	FS.watch(filepath, () => {
+		if (!!timer) clearTimeout(timer);
+		timer = setTimeout(() => {
+			timer = null;
+			callback();
+		}, 100);
+	});
+};
 
 _('Utils.Watcher', Watcher);
-_('Utils.watchFolder', addWatch);
 _('Utils.WatchEvents', EventType);
+_('Utils.watchFolder', addWatch);
+_('Utils.watchFile', watchFile);
 module.exports = {
 	EventType,
-	add: addWatch
+	add: addWatch,
+	watchFile
 };

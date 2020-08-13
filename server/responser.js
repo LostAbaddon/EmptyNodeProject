@@ -17,7 +17,9 @@ global.ResponsorList = [];
 
 const Config = {
 	process: 1,
-	services: []
+	services: [],
+	preprocessor: [],
+	postprocessor: []
 };
 const TaskInfo = {
 	total: 0,
@@ -147,12 +149,39 @@ const launchWorkers = (cfg, callback) => {
 		});
 	}
 };
+const loadProcessor = (list, modules) => {
+	modules.forEach(filepath => {
+		filepath = Path.join(process.cwd(), filepath);
+		var processor;
+		try {
+			processor = require(filepath);
+		} catch {
+			console.error(setStyle('模块 ' + filepath + ' 加载失败', 'red'));
+		}
+		if (!!processor) list.push(processor);
+		Watcher.watchFile(filepath, () => {
+			list.remove(processor);
+			try {
+				ModuleManager.dump(filepath);
+				processor = require(filepath);
+			} catch {}
+			if (!!processor) list.push(processor);
+		});
+	});
+};
 
 const setConfig = cfg => {
 	if (Boolean.is(cfg.isDelegator)) isDelegator = cfg.isDelegator;
 
 	if (Array.is(cfg.api.services)) Config.services.push(...cfg.api.services);
 	else if (String.is(cfg.api.services)) Config.services.push(cfg.api.services);
+
+	if (!!cfg.api?.preprocessor) {
+		loadProcessor(Config.preprocessor, cfg.api.preprocessor);
+	}
+	if (!!cfg.api?.postprocessor) {
+		loadProcessor(Config.postprocessor, cfg.api.postprocessor);
+	}
 
 	if (isDelegator) {
 		Config.process = 1;
@@ -382,7 +411,26 @@ const launchLocalResponsor = (responsor, param, query, url, data, method, source
 		TaskInfo.total ++;
 		let time = Date.now();
 		try {
-			result = await responsor(param, query, url, data, method, source, ip, port);
+			let resume = true;
+			if (Config.preprocessor.length > 0) {
+				for (let pro of Config.preprocessor) {
+					let r = await pro(param, query, url, data, method, source, ip, port);
+					if (!!r && !r.ok) {
+						result = r;
+						resume = false;
+						break;
+					}
+				}
+			}
+			if (resume) {
+				result = await responsor(param, query, url, data, method, source, ip, port);
+				if (Config.postprocessor.length > 0) {
+					for (let pro of Config.postprocessor) {
+						let r = await pro(result, param, query, url, data, method, source, ip, port);
+						if (!!r) break;
+					}
+				}
+			}
 		}
 		catch (err) {
 			console.error(err);
@@ -488,5 +536,11 @@ module.exports = {
 	launch: launchResponsor,
 	launchLocally: launchLocalResponsor,
 	extinct: extinctSlavers,
-	getUsage
+	getUsage,
+	get preprocessor () {
+		return Config.preprocessor;
+	},
+	get postprocessor () {
+		return Config.postprocessor;
+	}
 };

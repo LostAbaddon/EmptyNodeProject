@@ -21,7 +21,28 @@ const doTask = async (tid, target, data) => {
 	var resp = ResponsorMap[target];
 	var result;
 	try {
-		result = await resp.responsor(data.param, data.query, data.url, data.data, data.method, data.source, data.ip, data.port);
+		let resume = true;
+		if (ResponsorManager.preprocessor.length > 0) {
+			for (let pro of ResponsorManager.preprocessor) {
+				let r = await pro(data.param, data.query, data.url, data.data, data.method, data.source, data.ip, data.port);
+				if (!!r && !r.ok) {
+					result = r;
+					resume = false;
+					break;
+				}
+			}
+		}
+		if (resume) {
+			result = await resp.responsor(data.param, data.query, data.url, data.data, data.method, data.source, data.ip, data.port);
+			if (ResponsorManager.postprocessor.length > 0) {
+				for (let pro of ResponsorManager.postprocessor) {
+					let r = await pro(result, data.param, data.query, data.url, data.data, data.method, data.source, data.ip, data.port);
+					if (!!r) break;
+				}
+			}
+		}
+
+
 	}
 	catch (err) {
 		result = {
