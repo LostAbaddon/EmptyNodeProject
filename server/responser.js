@@ -412,6 +412,7 @@ const launchLocalResponsor = (responsor, param, query, url, data, method, source
 		let time = Date.now();
 		try {
 			let resume = true;
+			data = data || {};
 			if (Config.preprocessor.length > 0) {
 				for (let pro of Config.preprocessor) {
 					let r = await pro(param, query, url, data, method, source, ip, port);

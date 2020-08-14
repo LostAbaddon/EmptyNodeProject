@@ -21,6 +21,7 @@ const doTask = async (tid, target, data) => {
 	var resp = ResponsorMap[target];
 	var result;
 	try {
+		data.data = data.data || {};
 		let resume = true;
 		if (ResponsorManager.preprocessor.length > 0) {
 			for (let pro of ResponsorManager.preprocessor) {
@@ -41,8 +42,6 @@ const doTask = async (tid, target, data) => {
 				}
 			}
 		}
-
-
 	}
 	catch (err) {
 		result = {
