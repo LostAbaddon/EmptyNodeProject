@@ -1,4 +1,8 @@
+const Path = require('path');
 const setStyle = _('CL.SetStyle');
+
+var thread;
+var output2File = false;
 
 class LogRecord {
 	level = 0;
@@ -35,7 +39,7 @@ class LogRecord {
 		});
 		this.data = datas;
 	}
-	toDateTime () {
+	getDateTime () {
 		var date = this.stamp;
 		var Y = date.getYear() + 1900;
 		var M = date.getMonth() + 1;
@@ -56,19 +60,19 @@ class LogRecord {
 		return Y + '/' + M + '/' + D + ' ' + h + ':' + m + ':' + s;
 	}
 	toPlain () {
-		var head = '[' + this.title + ' ' + LogRecord.levelName[this.level] + ' (' + this.toDateTime() + ')]';
+		var head = '[' + this.title + ' ' + LogRecord.levelName[this.level] + ' (' + this.getDateTime() + ')]';
 		var body = this.data.join(' ');
 		return head + ' ' + body;
 	}
 	toPrint () {
-		var head = '[' + this.title + ' ' + LogRecord.levelName[this.level] + ' (' + this.toDateTime() + ')]';
+		var head = '[' + this.title + ' ' + LogRecord.levelName[this.level] + ' (' + this.getDateTime() + ')]';
 		head = setStyle(head, LogRecord.levelColor[this.level]);
 		var body = this.data.join(' ');
 		return head + ' ' + body;
 	}
 }
-LogRecord.levelName  = [ 'log',   'info',   'warn',    'error' ];
-LogRecord.levelColor = [ 'green', 'yellow', 'magenta', 'red'   ];
+LogRecord.levelName  = [ 'info',   'log',   'warn',    'error' ];
+LogRecord.levelColor = [ 'yellow', 'green', 'magenta', 'red'   ];
 
 class Logger {
 	#mainTitle = 'MAIN-PRO';
@@ -109,10 +113,12 @@ class Logger {
 		if (this.#history.length === 0) return;
 		this.#history.sort((a, b) => a.stamp - b.stamp);
 		var now = Date.now();
-		var not = [], has = false;
+		var not = [], has = false, list = [], need = false;
 		this.#history.forEach(log => {
 			if (log.stamp.getTime() <= now) {
 				console[LogRecord.levelName[log.level]](log.toPrint());
+				list.push(log);
+				need = true;
 			}
 			else {
 				not.push(log);
@@ -120,20 +126,26 @@ class Logger {
 			}
 		});
 		this.#history = not;
+		if (need && output2File)  thread.postMessage(list.map(item => {
+			return {
+				stamp: item.stamp.getTime(),
+				type: item.level,
+				msg: item.toPlain()
+			};
+		}));
 		if (has) this.#update();
 	}
 	#getFullTitle () {
+		var fullTitle = [];
 		if (global.isSlaver) {
-			return this.#subTitle + '::' + this.#name;
+			fullTitle.push(this.#subTitle);
 		}
-		else {
-			if (global.isMultiProcess) {
-				return this.#mainTitle + '::' + this.#name;
-			}
-			else {
-				return this.#name;
-			}
+		else if (global.isMultiProcess) {
+			fullTitle.push(this.#mainTitle);
 		}
+		if (!!global.thread && !!global.thread.threadId) fullTitle.push('T-' + global.thread.threadId);
+		fullTitle.push(this.#name);
+		return fullTitle.join('::');
 	}
 	#update () {
 		if (!!this.#timer) clearTimeout(this.#timer);
@@ -143,7 +155,13 @@ class Logger {
 		}, Logger.FlushDuration);
 	}
 	#record (item) {
-		if (isSlaver) {
+		if (!!global.thread && !global.thread.isMainThread) {
+			global.thread.parentPort.postMessage({
+				event: 'threadlog',
+				data: item
+			});
+		}
+		else if (isSlaver) {
 			process.send({
 				event: 'log',
 				data: item
@@ -157,7 +175,24 @@ class Logger {
 }
 Logger.LogLimit = 0;
 Logger.FlushDuration = 100;
+Logger.OutputDuration = 1000 * 10;
+Logger.setOutput = filepath => {
+	if (!filepath) return;
+	var thd = new Logger('LoggerThreadCenter');
+	output2File = true;
+	thread = require('worker_threads').Worker;
+	thread = new thread(Path.join(__dirname, './thread/log.js'), {
+		workerData : {
+			output: Path.join(process.cwd(), filepath),
+			duration: Logger.OutputDuration,
+			isSlaver: global.isSlaver,
+			isMultiProcess: global.isMultiProcess
+		}
+	}).on('message', msg => {
+		if (msg.event === 'threadlog') {
+			thd.appendRecord(msg.data);
+		}
+	});
+};
 
 _("Utils.Logger", Logger);
-module.exports = {
-};

@@ -1,7 +1,7 @@
 const Path = require('path');
 require("./core");
 loadall(__dirname, "./core/commandline");
-loadall(__dirname, "./kernel");
+loadall(__dirname, "./kernel", false);
 require('./server/center');
 const webServer = require('./server/web');
 const socketServer = require('./server/socket');
@@ -18,7 +18,9 @@ const createServer = (config, options) => {
 		mode: 'process',
 		title: config.name + " v" + config.version,
 	}).describe(setStyle(config.name + " v" + config.version, "bold"))
-	.addOption('--console [console] >> 启用控制台');
+	.addOption('--console [console] >> 启用控制台')
+	.addOption('--logLevel [logLevel=0] >> 日志输出等级')
+	.addOption('--logFile <logFile> >> 日志输出目录');
 
 	options.forEach(opt => clp.addOption(opt));
 
@@ -41,6 +43,12 @@ const createServer = (config, options) => {
 		if (Number.is(param.udp6)) cfg.port.udp6 = param.udp6;
 		if (Number.is(param.process) || param.process === 'auto') cfg.process = param.process;
 		if (Boolean.is(param.console) || String.is(param.console)) cfg.console = param.console;
+		if (Number.is(param.logLevel)) cfg.logLevel = param.logLevel;
+		else cfg.logLevel = 0;
+		if (String.is(param.logFile)) cfg.logFile = param.logFile;
+
+		// 设置日志相关
+		_("Utils.Logger").LogLimit = cfg.logLevel;
 
 		// Load Responsors
 		if (!cfg.api) {
@@ -71,6 +79,7 @@ const createServer = (config, options) => {
 				return;
 			}
 			ResponsorManager.setConfig(cfg);
+			_("Utils.Logger").setOutput(cfg.logFile);
 			console.log(setStyle(config.welcome.success, 'bold green'));
 		};
 
