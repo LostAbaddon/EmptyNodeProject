@@ -1,10 +1,11 @@
+const FS = require('fs');
+const Path = require('path');
 const Koa = require('koa');
 const KoaBody = require('koa-body');
 const KoaStatic = require('koa-static');
-const ResponsorManager = require('./responser');
 const IO = require('./websocket');
-const FS = require('fs');
-const Path = require('path');
+const ResponsorManager = require('./responser');
+const Logger = new (_("Utils.Logger"))('WebManager');
 
 const DefaultType = 'application/json';
 
@@ -60,7 +61,7 @@ module.exports = (options, callback) => {
 				code: 403,
 				ok: false
 			};
-			console.error('result: Non-API Request (' + path + ')');
+			Logger.error('result: Non-API Request (' + path + ')');
 			return await next();
 		}
 		path = path.replace(apiPrefix, '/');
@@ -76,7 +77,7 @@ module.exports = (options, callback) => {
 				code: 404,
 				ok: false
 			};
-			console.error('result: Responsor Not Found (' + path + ')');
+			Logger.error('result: Responsor Not Found (' + path + ')');
 			return await next();
 		}
 
@@ -107,7 +108,7 @@ module.exports = (options, callback) => {
 		count --;
 		if (!!err) {
 			failed ++;
-			console.error(err.message);
+			Logger.error(err.message);
 		}
 		else {
 			success ++;
@@ -129,7 +130,7 @@ module.exports = (options, callback) => {
 			ok = true;
 		}
 		catch {
-			console.error('Missing CSR key-file.');
+			Logger.error('Missing CSR key-file.');
 			ok = false;
 		}
 		if (ok) {

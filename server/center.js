@@ -1,5 +1,6 @@
 const Responsor = require('./responser');
 const Galanet = require('./galanet');
+const Logger = new (_("Utils.Logger"))('EventCenter');
 
 process.on('command::request::shakehand', remoteIP => {
 	Galanet.reshakehand(remoteIP);
@@ -27,7 +28,7 @@ process.on('console::shutdown', async (isAll, event, callback) => {
 	if (isAll) {
 		let count = await Galanet.shutdownAll();
 		msg = '已通知 ' + count + ' 个集群友机离线';
-		console.log(msg);
+		Logger.log(msg);
 		msg = '已离线，并' + msg;
 	}
 	else {

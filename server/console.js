@@ -1,5 +1,6 @@
 const pipeServer = require('../kernel/tcp');
 const setStyle = _('CL.SetStyle');
+const Logger = new (_("Utils.Logger"))('ConsoleManager');
 
 const ConsoleEventTag = 'console::';
 const ConsoleHelp = {
@@ -12,7 +13,7 @@ const sockets = [];
 const createServer = (host, ipc, callback) => {
 	pipeServer.server(ipc, 0, (svr, err) => {
 		if (!!err) {
-			console.error(setStyle('Create Console-Server Failed.', 'bold red'));
+			Logger.error('Create Console-Server Failed.');
 			err = new Errors.ServerError.CreateConsoleFailed(err.message);
 			callback(err);
 		}
@@ -110,9 +111,8 @@ const deal = async (param, config) => {
 	var cmds = {}, req = [], cmdList = {};
 	param.mission.forEach(m => {
 		if (m.value?.list) {
-			console.log(setStyle(m.name + ' 可用参数：', 'bold'));
+			console.log(m.name + ' 可用参数：');
 			console.log(ConsoleHelp[m.name] || '(无)');
-			console.log('');
 		}
 		else {
 			cmds[m.name] = m.value;

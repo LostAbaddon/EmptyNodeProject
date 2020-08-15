@@ -6,6 +6,7 @@ const Http = require('http');
 const TCP = require('../kernel/tcp');
 const UDP = require('../kernel/udp');
 const setStyle = _('CL.SetStyle');
+const Logger = new (_("Utils.Logger"))('Galanet');
 var ResponsorManager;
 
 const AvailableSource = [ 'tcp', 'udp', 'http' ];
@@ -137,7 +138,7 @@ const launchTask = (responsor, param, query, url, data, method, source, ip, port
 	resps.sort((ra, rb) => ra.taskInfo.power - rb.taskInfo.power);
 	var resp = resps[0];
 
-	var time = Date.now(), result;
+	var time = now(), result;
 	resp.taskInfo.total ++;
 	resp.taskInfo.power = resp.taskInfo.energy * (1 + resp.taskInfo.total - resp.taskInfo.done);
 	if (resp.name === 'local') { // 本地处理
@@ -152,18 +153,18 @@ const launchTask = (responsor, param, query, url, data, method, source, ip, port
 		result = await sendRequest(resp, method, url, param);
 	}
 	resp.taskInfo.done ++;
-	time = Date.now() - time;
+	time = now() - time;
 	if (!result.ok) {
 		time = 1.2 * time + 20;
 		if (result.code === Errors.GalanetError.NotFriendNode.code) {
-			console.error(setStyle(resp.name + ' : not friend node (' + url + ')', 'red'));
+			Logger.error(resp.name + ' : not friend node (' + url + ')');
 			resp.failed ++;
 			if (resp.failed === 3) Config.nodes.remove(resp);
 			await waitLoop();
 			result = await launchTask(responsor, param, query, url, data, method, source, ip, port);
 		}
 		else if (result.code === Errors.GalanetError.CannotService.code) {
-			console.error(setStyle(resp.name + ' : cannot service (' + url + ')', 'red'));
+			Logger.error(resp.name + ' : cannot service (' + url + ')');
 			let p = url.split('/')[0];
 			if (!!p && !!resp.services) resp.services.remove(p);
 			resp.failed ++;
@@ -172,7 +173,7 @@ const launchTask = (responsor, param, query, url, data, method, source, ip, port
 			result = await launchTask(responsor, param, query, url, data, method, source, ip, port);
 		}
 		else {
-			console.error(setStyle(resp.name + ' error(' + resp.code + '): ' + resp.message, 'red'));
+			Logger.error(resp.name + ' error(' + resp.code + '): ' + resp.message);
 		}
 	}
 	else {
@@ -336,7 +337,7 @@ const sendRequest = async (node, method, path, message) => {
 				};
 			}
 			if (!!err) {
-				console.error(err);
+				Logger.error(err);
 				return {
 					ok: false,
 					code: err.code || 500,
@@ -347,7 +348,7 @@ const sendRequest = async (node, method, path, message) => {
 		return result;
 	}
 	catch (err) {
-		console.error(err);
+		Logger.error(err);
 		return {
 			ok: false,
 			code: err.code || 500,
@@ -368,18 +369,18 @@ const connectNode = node => new Promise(res => {
 		connect = connectUDP;
 	}
 	else {
-		console.log(node);
+		Logger.log(node);
 		return res(new Errors.GalanetError.WrongProtocol());
 	}
 	connect(node, (data, err) => {
 		if (!!err) {
-			console.error('与节点 ' + node.name + ' 握手失败: ' + err.message);
+			Logger.error('与节点 ' + node.name + ' 握手失败: ' + err.message);
 			node.available = false;
 			return res(err);
 		}
 		node.available = true;
 		node.services = [...data];
-		console.log('连接' + node.name + '成功！');
+		Logger.log('连接' + node.name + '成功！');
 		res();
 	});
 });

@@ -5,6 +5,7 @@
 const EventEmitter = require('events');
 const IO = require('socket.io');
 const ResponsorManager = require('./responser');
+const Logger = new (_("Utils.Logger"))('WebSocket');
 
 var io;
 var eventLoop = new EventEmitter();
@@ -38,7 +39,7 @@ const init = (server) => {
 						code: err.code || 500,
 						message: err.message
 					});
-					console.error(err);
+					Logger.error(err);
 				}
 			}
 

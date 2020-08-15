@@ -2,9 +2,9 @@ const Path = require('path');
 const Process = require('child_process');
 const Galanet = require('./galanet');
 const Watcher = require('../kernel/watcher');
-const setStyle = _('CL.SetStyle');
 const newLongID = _('Message.newLongID');
 const ModuleManager = _('Utils.ModuleManager');
+const Logger = new (_("Utils.Logger"))('Responsor');
 const SubProcessState = Symbol.setSymbols('IDLE', 'WAITING', 'WORKING', 'DIED');
 const HotfixModuleExtName = [ 'js', 'mjs', 'cjs', 'json' ];
 const NonAPIModulePrefix = '_';
@@ -74,14 +74,14 @@ const forkChildren = (cfg, callback) => {
 				let task = PendingTasks.shift();
 				worker.launchTask(task);
 			}
-			console.log('Slaver Ready: ' + worker.pid);
+			Logger.log('Slaver Ready: ' + worker.pid);
 			callback();
 		}
 		else if (msg.event === 'jobdone') {
 			if (worker.state === SubProcessState.DIED) return;
 			let info = worker.taskQueue[msg.id];
 			if (!info) return;
-			let used = Date.now() - info.stamp;
+			let used = now() - info.stamp;
 			worker.taskDone ++;
 			worker.taskTimespent += used;
 			let average = worker.taskTimespent / worker.taskDone;
@@ -89,7 +89,7 @@ const forkChildren = (cfg, callback) => {
 			worker.taskPower = worker.taskEnergy * (1 + worker.taskCount - worker.taskDone);
 			delete worker.taskQueue[msg.id];
 			worker.state = SubProcessState.WAITING;
-			console.log('Slaver-' + worker.pid + ' Job DONE! (' + worker.taskPower + ' | ' + worker.taskCount + ' / ' + worker.taskDone + ' / ' + worker.taskTimespent + ')');
+			Logger.log('Slaver-' + worker.pid + ' Job DONE! (' + worker.taskPower + ' | ' + worker.taskCount + ' / ' + worker.taskDone + ' / ' + worker.taskTimespent + ')');
 			if (PendingTasks.length > 0) {
 				let task = PendingTasks.shift();
 				worker.launchTask(task);
@@ -99,15 +99,18 @@ const forkChildren = (cfg, callback) => {
 		else if (msg.event === 'command') {
 			process.emit(msg.action, msg.data);
 		}
+		else if (msg.event === 'log') {
+			Logger.appendRecord(msg.data);
+		}
 		else if (msg.event === 'extinct') {
 			extinctSlavers();
 		}
 		else {
-			console.log('MainProcess::Message', msg);
+			Logger.log('MainProcess::Message', msg);
 		}
 	});
 	worker.on('exit', code => {
-		console.log('Slaver Died: ' + worker.pid);
+		Logger.log('Slaver Died: ' + worker.pid);
 		Slavers.remove(worker);
 
 		var died = worker.state === SubProcessState.DIED;
@@ -156,16 +159,16 @@ const loadProcessor = (list, modules) => {
 		try {
 			processor = require(filepath);
 		} catch {
-			console.error(setStyle('模块 ' + filepath + ' 加载失败', 'red'));
+			Logger.error('模块 ' + filepath + ' 加载失败');
 		}
-		if (!!processor) list.push(processor);
+		if (!!processor && Function.is(processor)) list.push(processor);
 		Watcher.watchFile(filepath, () => {
 			list.remove(processor);
 			try {
 				ModuleManager.dump(filepath);
 				processor = require(filepath);
 			} catch {}
-			if (!!processor) list.push(processor);
+			if (!!processor && Function.is(processor)) list.push(processor);
 		});
 	});
 };
@@ -176,12 +179,7 @@ const setConfig = cfg => {
 	if (Array.is(cfg.api.services)) Config.services.push(...cfg.api.services);
 	else if (String.is(cfg.api.services)) Config.services.push(cfg.api.services);
 
-	if (!!cfg.api?.preprocessor) {
-		loadProcessor(Config.preprocessor, cfg.api.preprocessor);
-	}
-	if (!!cfg.api?.postprocessor) {
-		loadProcessor(Config.postprocessor, cfg.api.postprocessor);
-	}
+	loadPrePostWidget(cfg);
 
 	if (isDelegator) {
 		Config.process = 1;
@@ -205,6 +203,14 @@ const setConfig = cfg => {
 	}
 
 	Galanet.setConfig(cfg);
+};
+const loadPrePostWidget = cfg => {
+	if (!!cfg.api?.preprocessor) {
+		loadProcessor(Config.preprocessor, cfg.api.preprocessor);
+	}
+	if (!!cfg.api?.postprocessor) {
+		loadProcessor(Config.postprocessor, cfg.api.postprocessor);
+	}
 };
 const loadResponseFile = (path, filepath) => {
 	var low = filepath.toLowerCase();
@@ -294,16 +300,16 @@ const loadResponsors = async (path, monitor=true) => {
 	if (monitor) {
 		list = await Watcher.add(path, (event, filepath) => {
 			if (event === Watcher.EventType.NewFile) {
-				console.log(setStyle('新增API模块：' + filepath, 'green'));
+				Logger.log('新增API模块：' + filepath);
 				loadResponseFile(path, filepath);
 			}
 			else if (event === Watcher.EventType.ModifyFile) {
-				console.log(setStyle('更新API模块：' + filepath, 'yellow'));
+				Logger.log('更新API模块：' + filepath);
 				unloadResponseFile(path, filepath);
 				loadResponseFile(path, filepath);
 			}
 			else if (event === Watcher.EventType.DeleteFile) {
-				console.log(setStyle('移除API模块：' + filepath, 'pink'));
+				Logger.log('移除API模块：' + filepath);
 				unloadResponseFile(path, filepath);
 			}
 		});
@@ -409,7 +415,7 @@ const launchLocalResponsor = (responsor, param, query, url, data, method, source
 	if (Config.process <= 1) {
 		let result;
 		TaskInfo.total ++;
-		let time = Date.now();
+		let time = now();
 		try {
 			let resume = true;
 			data = data || {};
@@ -434,7 +440,7 @@ const launchLocalResponsor = (responsor, param, query, url, data, method, source
 			}
 		}
 		catch (err) {
-			console.error(err);
+			Logger.error(err);
 			result = {
 				ok: false,
 				code: err.code || 500,
@@ -442,7 +448,7 @@ const launchLocalResponsor = (responsor, param, query, url, data, method, source
 			};
 		}
 		TaskInfo.done ++;
-		time = Date.now() - time;
+		time = now() - time;
 		TaskInfo.spent += time;
 		TaskInfo.energy = TaskInfo.spent / TaskInfo.done;
 		TaskInfo.power = (TaskInfo.energy * 2 + time) / 3;
@@ -453,7 +459,7 @@ const launchLocalResponsor = (responsor, param, query, url, data, method, source
 		tid: newLongID(),
 		responsor: responsor._url,
 		data: { param, query, url, data: {}, method, source, ip, port },
-		stamp: Date.now(),
+		stamp: now(),
 		callback: res
 	};
 
@@ -532,6 +538,7 @@ const getUsage = () => {
 
 module.exports = {
 	setConfig,
+	loadProcessor: loadPrePostWidget,
 	load: loadResponsors,
 	match: matchResponsor,
 	launch: launchResponsor,

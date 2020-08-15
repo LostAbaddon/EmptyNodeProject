@@ -3,8 +3,9 @@ const Path = require('path');
 require("../core");
 loadall(__dirname, "../kernel");
 const ResponsorManager = require('./responser');
-const newLongID = _('Message.newLongID');
 const Galanet = require('./galanet');
+const newLongID = _('Message.newLongID');
+const Logger = new (_("Utils.Logger"))('SubProcess');
 
 global.isSlaver = true;
 const Config = { path: '' };
@@ -14,6 +15,8 @@ const setConfig = async cfg => {
 		Config.path = cfg.api.local;
 		await ResponsorManager.load(Path.join(process.cwd(), Config.path));
 	}
+	ResponsorManager.loadProcessor(cfg);
+
 	Galanet.setConfig(cfg);
 	process.send({ event: 'ready' });
 };
@@ -37,6 +40,7 @@ const doTask = async (tid, target, data) => {
 			result = await resp.responsor(data.param, data.query, data.url, data.data, data.method, data.source, data.ip, data.port);
 			if (ResponsorManager.postprocessor.length > 0) {
 				for (let pro of ResponsorManager.postprocessor) {
+					Logger.log(typeof pro, pro);
 					let r = await pro(result, data.param, data.query, data.url, data.data, data.method, data.source, data.ip, data.port);
 					if (!!r) break;
 				}
@@ -44,6 +48,7 @@ const doTask = async (tid, target, data) => {
 		}
 	}
 	catch (err) {
+		Logger.error(err);
 		result = {
 			ok: false,
 			code: err.code,
@@ -68,7 +73,7 @@ process.on('message', msg => {
 		process.exit();
 	}
 	else {
-		console.log('SubProcess(' + process.pid + ')::Message', msg);
+		Logger.log('SubProcess(' + process.pid + ')::Message', msg);
 	}
 });
 

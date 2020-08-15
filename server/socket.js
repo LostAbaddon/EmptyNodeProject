@@ -3,6 +3,7 @@ const setStyle = _('CL.SetStyle');
 const tcpManager = require('../kernel/tcp');
 const udpManager = require('../kernel/udp');
 const ResponsorManager = require('./responser');
+const Logger = new (_("Utils.Logger"))('SocketManager');
 
 const eventLoop = new EventEmitter();
 
@@ -28,7 +29,7 @@ const init = (config, callback) => {
 
 		tcpManager.server('127.0.0.1', config.port.tcp, (svr, err) => {
 			if (!!err) {
-				console.error(setStyle('Launch TCP-Server Failed.', 'bold red'));
+				Logger.error('Launch TCP-Server Failed.');
 				cb('tcp', false);
 			}
 			else {
@@ -45,7 +46,7 @@ const init = (config, callback) => {
 
 		tcpManager.server(config.port.pipe, null, (svr, err) => {
 			if (!!err) {
-				console.error(setStyle('Launch Pipe-Server Failed.', 'bold red'));
+				Logger.error('Launch Pipe-Server Failed.');
 				cb('pipe', false);
 			}
 			else {
@@ -61,7 +62,7 @@ const init = (config, callback) => {
 
 		udpManager.server('127.0.0.1', config.port.udp4, (svr, err) => {
 			if (!!err) {
-				console.error(setStyle('Launch UDPv4-Server Failed.', 'bold red'));
+				Logger.error('Launch UDPv4-Server Failed.');
 				cb('udp4', false);
 			}
 			else {
@@ -78,7 +79,7 @@ const init = (config, callback) => {
 
 		udpManager.server('::1', config.port.udp6, (svr, err) => {
 			if (!!err) {
-				console.error(setStyle('Launch UDPv6-Server Failed.', 'bold red'));
+				Logger.error('Launch UDPv6-Server Failed.');
 				cb('udp6', false);
 			}
 			else {
@@ -114,7 +115,7 @@ const init = (config, callback) => {
 					resp(result);
 				}
 				catch (err) {
-					console.error(err);
+					Logger.error(err);
 					resp({
 						ok: false,
 						code: err.code || 500,
@@ -124,7 +125,7 @@ const init = (config, callback) => {
 			}
 			else {
 				let err = new Errors.ConfigError.NoResponsor('URL: ' + event);
-				console.error(err);
+				Logger.error(err);
 				resp({
 					ok: false,
 					code: err.code,
