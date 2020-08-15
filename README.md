@@ -37,8 +37,8 @@
 
 ## 计划
 
--	MySQL 模块（working）
--	Redis 模块（working）
+-	MySQL 模块
+-	Redis 模块
 -	支持根据任务类型进行多节点任务调配，而非统一任务调配
 
 ## 代码仓库
