@@ -116,7 +116,7 @@ class Logger {
 		var not = [], has = false, list = [], need = false;
 		this.#history.forEach(log => {
 			if (log.stamp.getTime() <= now) {
-				console[LogRecord.levelName[log.level]](log.toPrint());
+				if (!Logger.Silence) console[LogRecord.levelName[log.level]](log.toPrint());
 				list.push(log);
 				need = true;
 			}
@@ -174,6 +174,7 @@ class Logger {
 	}
 }
 Logger.LogLimit = 0;
+Logger.Silence = false;
 Logger.FlushDuration = 100;
 Logger.OutputDuration = 1000 * 10;
 Logger.setOutput = filepath => {

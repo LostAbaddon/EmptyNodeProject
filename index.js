@@ -13,6 +13,11 @@ const setStyle = _('CL.SetStyle');
 const DefailtIPC = '/tmp/console.ipc';
 
 const createServer = (config, options) => {
+	var hooks = {
+		start: [],
+		ready: []
+	};
+
 	// 配置命令行工具
 	const clp = CLP({
 		mode: 'process',
@@ -21,6 +26,7 @@ const createServer = (config, options) => {
 	.addOption('--console [console] >> 启用控制台')
 	.addOption('--logLevel [logLevel=0] >> 日志输出等级')
 	.addOption('--logFile <logFile> >> 日志输出目录');
+	.addOption('--silence >> 不显示控制台日志');
 
 	options.forEach(opt => clp.addOption(opt));
 
@@ -47,8 +53,13 @@ const createServer = (config, options) => {
 		else cfg.logLevel = 0;
 		if (String.is(param.logFile)) cfg.logFile = param.logFile;
 
+		if (hooks.start.length > 0) hooks.start.forEach(cb => cb(param));
+		delete hooks.start;
+
 		// 设置日志相关
-		_("Utils.Logger").LogLimit = cfg.logLevel;
+		var logger = _("Utils.Logger");
+		logger.LogLimit = cfg.logLevel;
+		logger.Silence = Boolean.is(silence) ? silence : false;
 
 		// Load Responsors
 		if (!cfg.api) {
@@ -79,8 +90,11 @@ const createServer = (config, options) => {
 				return;
 			}
 			ResponsorManager.setConfig(cfg);
-			_("Utils.Logger").setOutput(cfg.logFile);
+			logger.setOutput(cfg.logFile);
 			console.log(setStyle(config.welcome.success, 'bold green'));
+
+			if (hooks.ready.length > 0) hooks.ready.forEach(cb => cb());
+			delete hooks.ready;
 		};
 
 		// 启动 Web 服务器
@@ -125,6 +139,9 @@ const createServer = (config, options) => {
 			});
 		}
 	});
+
+	clp.onStart = cb => hooks.start.push(cb);
+	clp.onReady = cb => hooks.ready.push(cb);
 
 	return clp;
 };
