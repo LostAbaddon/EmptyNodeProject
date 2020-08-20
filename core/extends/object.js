@@ -67,7 +67,7 @@ BigInt.prototype.duplicate = function () {
 };
 Object.defineProperty(BigInt.prototype, 'duplicate', { enumerable: false });
 Boolean.prototype.duplicate = function () {
-	if (this == false) return false;
+	if (this === false || this.valueOf() === false) return false;
 	return true;
 };
 Object.defineProperty(Boolean.prototype, 'duplicate', { enumerable: false });
