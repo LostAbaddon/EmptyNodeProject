@@ -4,6 +4,7 @@
  * Author:	LostAbaddon
  * Version:	0.0.2
  * Date:	2018.11.14
+ * 备注：未来可以用VM来取代eval
  */
 
 global.thread = require('worker_threads');

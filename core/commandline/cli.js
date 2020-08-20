@@ -75,6 +75,7 @@ const CommandHistory = {
 			});
 			list = list.join('\n') + '\n';
 			fs.writeFile(process.env.PWD + CommandHistory.storage, list, { encoding: 'utf8' }, err => {
+				console.error(err);
 				res();
 			});
 		});
