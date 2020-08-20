@@ -103,6 +103,7 @@ if (Data.protocol === 'tcp') {
 			delete contentMap[mid];
 		});
 		remote.on('error', err => {
+			console.error(err);
 			remote.end();
 		});
 		remote.on('close', () => {
