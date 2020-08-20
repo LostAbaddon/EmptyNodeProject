@@ -93,6 +93,7 @@ const pickTask = () => {
 	// 关闭同名闲置信道
 	var largeIdles = []; // 所有闲置信道
 	var smallIdles = []; // 所有同名闲置信道中非最近项
+	var append2smallIdle = info => smallIdles.push(info);
 	for (let [name, bundle] of bundleMap) {
 		let idles = [];
 		for (let fiber of bundle) {
@@ -103,12 +104,12 @@ const pickTask = () => {
 		}
 		if (idles.length !== bundle.size) {
 			// 不同说明还有非闲置信道，从而所有闲置信道都加入smallIdles中
-			idles.forEach(info => smallIdles.push(info));
+			idles.forEach(append2smallIdle);
 		} else {
 			// 相同，则需要过滤掉最新更新的信道
 			idles.sort((ia, ib) => ia[0] - ib[0]);
 			idles.pop();
-			idles.forEach(info => smallIdles.push(info));
+			idles.forEach(append2smallIdle);
 		}
 	}
 
