@@ -25,7 +25,7 @@ const createServer = (config, options) => {
 	}).describe(setStyle(config.name + " v" + config.version, "bold"))
 	.addOption('--console [console] >> 启用控制台')
 	.addOption('--logLevel [logLevel=0] >> 日志输出等级')
-	.addOption('--logFile <logFile> >> 日志输出目录');
+	.addOption('--logFile <logFile> >> 日志输出目录')
 	.addOption('--silence >> 不显示控制台日志');
 
 	options.forEach(opt => clp.addOption(opt));
@@ -59,7 +59,7 @@ const createServer = (config, options) => {
 		// 设置日志相关
 		var logger = _("Utils.Logger");
 		logger.LogLimit = cfg.logLevel;
-		logger.Silence = Boolean.is(silence) ? silence : false;
+		logger.Silence = Boolean.is(param.silence) ? param.silence : false;
 
 		// Load Responsors
 		if (!cfg.api) {

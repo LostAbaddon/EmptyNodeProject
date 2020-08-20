@@ -169,55 +169,47 @@ class Params {
 				if (this.musts.indexOf(opt) < 0) this.musts.push(opt);
 			}
 			else if (tag === '[') { // 选填参数
+				let range, isArray;
 				if (opt.substring(0, 3) === '...') { // 选填参数组
 					opt = opt.substring(3, opt.length);
-					let range = opt.match(/(\(.*?\)=|\(.*?\)$)/);
-					if (!!range) {
-						range = range[0];
-						if (range.substring(range.length - 1, range.length) === '=') range = range.substring(0, range.length - 1);
-						opt = opt.replace(range, '');
-						range = toRegExp(range.substring(1, range.length - 1));
-					}
-					if (opt.indexOf('=') > 0) { // 带缺省值
-						opt = opt.split('=');
-						let defval = opt[1];
-						opt = opt[0];
-						if (this.options.indexOf(opt) < 0 && this.optionlist !== opt) {
-							if (!!range) this.valueRanges[opt] = range;
+					range = opt.match(/(\(.*?\)=|\(.*?\)$)/);
+					isArray = true;
+				}
+				else {
+					range = opt.match(/\(.*?\)[=$]/);
+					isArray = false;
+				}
+				if (!!range) {
+					range = range[0];
+					if (range.substring(range.length - 1, range.length) === '=') range = range.substring(0, range.length - 1);
+					opt = opt.replace(range, '');
+					range = toRegExp(range.substring(1, range.length - 1));
+				}
+				if (opt.indexOf('=') > 0) { // 带缺省值
+					opt = opt.split('=');
+					let defval = opt[1];
+					opt = opt[0];
+					if (this.options.indexOf(opt) < 0 && this.optionlist !== opt) {
+						if (!!range) this.valueRanges[opt] = range;
+						if (isArray) {
 							this.optionlist = opt;
 							defval = getParamValue(defval);
 							if (!(defval instanceof Array)) defval = [defval];
 							this.defaultValues[opt] = defval;
 						}
-					}
-					else { // 不带缺省值
-						if (this.options.indexOf(opt) < 0 && this.optionlist !== opt) {
-							if (!!range) this.valueRanges[opt] = range;
-							this.optionlist = opt;
-						}
-					}
-				}
-				else {
-					let range = opt.match(/\(.*?\)[=$]/);
-					if (!!range) {
-						range = range[0];
-						if (range.substring(range.length - 1, range.length) === '=') range = range.substring(0, range.length - 1);
-						opt = opt.replace(range, '');
-						range = toRegExp(range.substring(1, range.length - 1));
-					}
-					if (opt.indexOf('=') > 0) { // 带缺省值
-						opt = opt.split('=');
-						let defval = opt[1];
-						opt = opt[0];
-						if (this.options.indexOf(opt) < 0 && this.optionlist !== opt) {
-							if (!!range) this.valueRanges[opt] = range;
+						else {
 							this.options.push(opt);
 							this.defaultValues[opt] = getParamValue(defval);
 						}
 					}
-					else { // 不带缺省值
-						if (this.options.indexOf(opt) < 0 && this.optionlist !== opt) {
-							if (!!range) this.valueRanges[opt] = range;
+				}
+				else { // 不带缺省值
+					if (this.options.indexOf(opt) < 0 && this.optionlist !== opt) {
+						if (!!range) this.valueRanges[opt] = range;
+						if (isArray) {
+							this.optionlist = opt;
+						}
+						else {
 							this.options.push(opt);
 						}
 					}
