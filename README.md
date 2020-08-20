@@ -5,7 +5,7 @@
 这里包含基础 Node.JS 代码库，可用于 Web（含 WebSocket）、TCP、UDP、Socket 的连接，支持多节点、多进程与多线程。
 
 -	作者：Lostabaddon
--	版本：0.1.5
+-	版本：0.1.6
 
 ## 功能
 
