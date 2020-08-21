@@ -2,6 +2,7 @@ const Path = require('path');
 
 require("../core");
 loadall(__dirname, "../kernel", false);
+loadall(__dirname, "../db", false);
 const ResponsorManager = require('./responser');
 const Galanet = require('./galanet');
 const newLongID = _('Message.newLongID');

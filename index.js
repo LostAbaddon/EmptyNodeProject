@@ -2,6 +2,7 @@ const Path = require('path');
 require("./core");
 loadall(__dirname, "./core/commandline");
 loadall(__dirname, "./kernel", false);
+loadall(__dirname, "./db", false);
 require('./server/center');
 const webServer = require('./server/web');
 const socketServer = require('./server/socket');
@@ -60,6 +61,8 @@ const createServer = (config, options) => {
 		var logger = _("Utils.Logger");
 		logger.LogLimit = cfg.logLevel;
 		logger.Silence = Boolean.is(param.silence) ? param.silence : false;
+
+		console.log(cfg);
 
 		// Load Responsors
 		if (!cfg.api) {
