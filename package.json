@@ -1,7 +1,7 @@
 {
 	"name": "EmptyNodeProjectWithDB",
 	"description": "空NodeJS项目库，实现HTTP(s)、TCP、UDP、pipe等多种接入，支持多线程、多进程和多节点相应与自动负载均衡，并带有Redis和MySQL机制，基于同版本EmptyNodeProject。",
-	"version": "0.1.6",
+	"version": "0.1.7",
 	"dependencies": {
 		"axios": "^0.18.0",
 		"koa": "^2.11.0",

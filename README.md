@@ -5,7 +5,7 @@
 这里包含基础 Node.JS 代码库，可用于 Web（含 WebSocket）、TCP、UDP、Socket 的连接，支持多节点、多进程与多线程。
 
 -	作者：Lostabaddon
--	版本：0.1.6
+-	版本：0.1.7
 
 ## 功能
 
@@ -45,6 +45,7 @@
 
 -	MySQL 模块 (withDB: working)
 -	Redis 模块 (withDB: working)
+-	增加 Ising 协议，用于分布式共识 (master: working)
 -	主分支：支持根据任务类型进行多节点任务调配，而非统一任务调配
 
 ## 代码仓库
