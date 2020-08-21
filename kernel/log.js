@@ -161,7 +161,7 @@ class Logger {
 				data: item
 			});
 		}
-		else if (isSlaver) {
+		else if (global.isSlaver) {
 			process.send({
 				event: 'log',
 				data: item
