@@ -45,6 +45,7 @@
 
 -	MySQL 模块 (withDB: working)
 -	Redis 模块 (withDB: working)
+-	增加 Ising 协议，用于分布式共识 (master: working)
 -	主分支：支持根据任务类型进行多节点任务调配，而非统一任务调配
 
 ## 代码仓库
