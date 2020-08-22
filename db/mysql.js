@@ -27,6 +27,14 @@ const newConnection = cfg => {
 		Servers.delete(id);
 		sql.__end(cb);
 	};
+	sql.__query = sql.query;
+	sql.query = (clause, callback) => new Promise((res, rej) => {
+		sql.__query(clause, (err, results, fields) => {
+			if (!!callback) callback(err, results, fields);
+			if (!!err) rej(err);
+			else res(results)
+		});
+	});
 	sql.isConnection = true;
 	sql.isPool = false;
 	sql.isCluster = false;
@@ -49,6 +57,14 @@ const newPool = cfg => {
 		Servers.delete(id);
 		sql.__end(cb);
 	};
+	sql.__query = sql.query;
+	sql.query = (clause, callback) => new Promise((res, rej) => {
+		sql.__query(clause, (err, results, fields) => {
+			if (!!callback) callback(err, results, fields);
+			if (!!err) rej(err);
+			else res(results)
+		});
+	});
 	sql.isConnection = false;
 	sql.isPool = true;
 	sql.isCluster = false;
@@ -74,6 +90,17 @@ const newCluster = cfg => {
 		Servers.delete(id);
 		sql.__end(cb);
 	};
+	sql.__query = sql.query;
+	sql.query = (clause, callback) => new Promise((res, rej) => {
+		sql.getConnection((err, conn) => {
+			if (!!err) return rej(err);
+			conn.query(clause, (err, results, fields) => {
+				if (!!callback) callback(err, results, fields);
+				if (!!err) rej(err);
+				else res(results);
+			});
+		});
+	});
 	sql.isConnection = false;
 	sql.isPool = false;
 	sql.isCluster = true;
