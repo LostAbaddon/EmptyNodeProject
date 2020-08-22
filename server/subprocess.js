@@ -1,3 +1,5 @@
+global.noEventModules = true;
+
 const Path = require('path');
 
 require("../core");
