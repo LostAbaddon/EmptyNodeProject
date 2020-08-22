@@ -35,8 +35,13 @@ require('./utils/logger');
 
 require('./fs/prepare');
 
-require('./events/synclock');
-require('./events/eventManager');
-if (global._canThread) require('./threads/threadManager');
+if (!global.noEventModules) {
+	require('./events/synclock');
+	require('./events/eventManager');
+	if (global._canThread) {
+		require('./events/channel');
+		require('./threads/threadManager');
+	}
+}
 
 require('./moduleManager');
