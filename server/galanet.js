@@ -1,11 +1,8 @@
 const Path = require('path');
-const URL = require('url');
 const Net = require('net');
 const Axios = require('axios');
-const Http = require('http');
 const TCP = require('../kernel/tcp');
 const UDP = require('../kernel/udp');
-const setStyle = _('CL.SetStyle');
 const Logger = new (_("Utils.Logger"))('Galanet');
 var ResponsorManager;
 

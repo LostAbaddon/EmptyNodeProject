@@ -6,7 +6,6 @@ require("../core");
 loadall(__dirname, "../kernel", false);
 const ResponsorManager = require('./responser');
 const Galanet = require('./galanet');
-const newLongID = _('Message.newLongID');
 const Logger = new (_("Utils.Logger"))('SubProcess');
 
 global.isSlaver = true;
