@@ -64,8 +64,6 @@ const createServer = (config, options) => {
 		logger.LogLimit = cfg.logLevel;
 		logger.Silence = Boolean.is(param.silence) ? param.silence : false;
 
-		console.log(cfg);
-
 		// Load Responsors
 		if (!cfg.api) {
 			let err = new Errors.ConfigError.NoResponsor();
@@ -95,6 +93,10 @@ const createServer = (config, options) => {
 				return;
 			}
 			ResponsorManager.setConfig(cfg, () => {
+				if (!isMultiProcess && !isDelegator) {
+					// 如果在多线程模式，则数据库由各子进程来控制，主进程不用自己控制
+					_("Utils.MySQL.create")(cfg.mysql);
+				}
 				if (hooks.ready.length > 0) hooks.ready.forEach(cb => cb());
 				delete hooks.ready;
 			});

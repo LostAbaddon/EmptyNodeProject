@@ -7,7 +7,6 @@ loadall(__dirname, "../kernel", false);
 loadall(__dirname, "../db", false);
 const ResponsorManager = require('./responser');
 const Galanet = require('./galanet');
-const newLongID = _('Message.newLongID');
 const Logger = new (_("Utils.Logger"))('SubProcess');
 
 global.isSlaver = true;
@@ -19,8 +18,8 @@ const setConfig = async cfg => {
 		await ResponsorManager.load(Path.join(process.cwd(), Config.path));
 	}
 	ResponsorManager.loadProcessor(cfg);
-
 	await Galanet.setConfig(cfg);
+	_("Utils.MySQL.create")(cfg.mysql);
 
 	process.send({ event: 'ready' });
 };
