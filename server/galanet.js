@@ -18,16 +18,17 @@ const Config = {
 const Pending = [];
 const Reshakings = {};
 
-const setConfig = cfg => {
+const setConfig = (cfg, callback) => {
 	ResponsorManager = require('./responser'); // 不可先加载，因为那次该模块还没初始化完毕
+	if (!callback) callback = () => {};
 
 	Config.prefix = cfg.api.url;
 	if (!!cfg.api?.services) {
 		Config.services.push(...cfg.api.services);
 	}
 	require('./responser').load(Path.join(__dirname, 'insider'), false);
-	if (isSlaver) return;
-	if (!cfg.node || !cfg.node.length || cfg.node.length <= 0) return;
+	if (isSlaver) return callback();
+	if (!cfg.node || !cfg.node.length || cfg.node.length <= 0) return callback();
 
 	var nodes = {};
 	cfg.node.forEach(node => {
@@ -59,6 +60,8 @@ const setConfig = cfg => {
 		},
 		failed: 0
 	});
+
+	callback();
 };
 const shakehand = ip => {
 	Config.nodes.forEach(node => {
