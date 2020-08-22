@@ -91,12 +91,12 @@ const createServer = (config, options) => {
 				process.exit();
 				return;
 			}
-			ResponsorManager.setConfig(cfg);
+			ResponsorManager.setConfig(cfg, () => {
+				if (hooks.ready.length > 0) hooks.ready.forEach(cb => cb());
+				delete hooks.ready;
+			});
 			logger.setOutput(cfg.logFile);
 			console.log(setStyle(config.welcome.success, 'bold green'));
-
-			if (hooks.ready.length > 0) hooks.ready.forEach(cb => cb());
-			delete hooks.ready;
 		};
 
 		// 启动 Web 服务器

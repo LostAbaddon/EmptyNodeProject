@@ -246,7 +246,7 @@ class Params {
 			let r = this.valueRanges[n];
 			if (!!v) v = getParamValue(v);
 			else v = this.defaultValues[n];
-			if (!!v || v === false) {
+			if (!!v || v === false || v === 0) {
 				if (!!r && !(v + '').match(r)) {
 					throw new Error("参数 " + n + " 的值 " + v + " 不符合取值范围 " + r + " !");
 				}

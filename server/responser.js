@@ -173,7 +173,7 @@ const loadProcessor = (list, modules) => {
 	});
 };
 
-const setConfig = cfg => {
+const setConfig = (cfg, callback) => {
 	if (Boolean.is(cfg.isDelegator)) isDelegator = cfg.isDelegator;
 
 	if (Array.is(cfg.api.services)) Config.services.push(...cfg.api.services);
@@ -191,18 +191,21 @@ const setConfig = cfg => {
 		Config.process = require('os').cpus().length;
 	}
 	else if (Number.is(cfg.process)) {
-		Config.process = cfg.process;
-		if (Config.process < 1) Config.process = 1;
+		Config.process = Math.floor(cfg.process);
+		if (Config.process < 0) Config.process = 0;
 	}
 
-	if (Config.process > 1) {
+	if (Config.process > 0 && !isDelegator) {
 		isMultiProcess = true;
 		launchWorkers(cfg, () => {
 			Galanet.shakehand();
 		});
 	}
+	else {
+		setTimeout(() => Galanet.shakehand(), 0);
+	}
 
-	Galanet.setConfig(cfg);
+	Galanet.setConfig(cfg, callback);
 };
 const loadPrePostWidget = cfg => {
 	if (!!cfg.api?.preprocessor) {
