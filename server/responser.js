@@ -415,7 +415,7 @@ const launchResponsor = (responsor, param, query, url, data, method, source, ip,
 	res(result);
 });
 const launchLocalResponsor = (responsor, param, query, url, data, method, source, ip, port) => new Promise(async res => {
-	if (Config.process <= 1) {
+	if (Config.process < 1) {
 		let result;
 		TaskInfo.total ++;
 		let time = now();
