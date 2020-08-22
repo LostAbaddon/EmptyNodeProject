@@ -20,7 +20,8 @@ const setConfig = async cfg => {
 	}
 	ResponsorManager.loadProcessor(cfg);
 
-	Galanet.setConfig(cfg);
+	await Galanet.setConfig(cfg);
+
 	process.send({ event: 'ready' });
 };
 const doTask = async (tid, target, data) => {
