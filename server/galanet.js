@@ -18,7 +18,7 @@ const Config = {
 const Pending = [];
 const Reshakings = {};
 
-const setConfig = (cfg, callback) => {
+const setConfig = async (cfg, callback) => {
 	ResponsorManager = require('./responser'); // 不可先加载，因为那次该模块还没初始化完毕
 	if (!callback) callback = () => {};
 
