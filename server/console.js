@@ -127,6 +127,14 @@ const deal = async (param, config) => {
 			event: 'stat::' + cmds.stat.item,
 		});
 	}
+	if (!!cmds.local && !!cmds.local.command) {
+		cmdList.local = cmds.local.command;
+		req.push({
+			name: 'local',
+			target: cmds.local,
+			event: 'local::' + cmds.local.command
+		});
+	}
 	if (!!cmds.network) {
 		let action = null;
 		if (cmds.network.add) action = 'addNode';
@@ -162,43 +170,51 @@ const deal = async (param, config) => {
 	}
 	else {
 		for (let item in reply) {
-			reply = reply[item];
+			let msg = reply[item];
 			if (item === 'stat') {
-				if (cmdList[item] === 'usage') showStatUsage(reply);
-				else if (cmdList[item] === 'cluster') showStatNetwork(reply);
+				if (cmdList[item] === 'usage') showStatUsage(msg);
+				else if (cmdList[item] === 'cluster') showStatNetwork(msg);
+			}
+			else if (item === 'local') {
+				if (msg.ok) {
+					console.log(msg.data);
+				}
+				else {
+					console.error(msg.message);
+				}
 			}
 			else if (item === 'network') {
 				let order = cmdList[item];
 				if (order === 'addNode') {
-					if (reply.ok) {
-						console.log(reply.data);
+					if (msg.ok) {
+						console.log(msg.data);
 					}
 					else {
-						console.error('添加节点失败（错误号 ' + reply.code + '）: ' + reply.message);
+						console.error('添加节点失败（错误号 ' + msg.code + '）: ' + msg.message);
 					}
 				}
 				else if (order === 'removeNode') {
-					if (reply.ok) {
-						console.log(reply.data);
+					if (msg.ok) {
+						console.log(msg.data);
 					}
 					else {
-						console.error('移除节点失败（错误号 ' + reply.code + '）: ' + reply.message);
+						console.error('移除节点失败（错误号 ' + msg.code + '）: ' + msg.message);
 					}
 				}
 				else {
-					console.log(cmdList[item] + ':', reply);
+					console.log(cmdList[item] + ':', msg);
 				}
 			}
 			else if (item === 'shutdown') {
-				if (reply.ok) {
-					console.log(reply.data);
+				if (msg.ok) {
+					console.log(msg.data);
 				}
 				else {
-					console.error('关闭失败（错误号 ' + reply.code + '）：' + reply.message);
+					console.error('关闭失败（错误号 ' + msg.code + '）：' + msg.message);
 				}
 			}
 			else {
-				console.error(item + '/' + cmdList[item] + ': ' + reply.message);
+				console.error(item + '/' + cmdList[item] + ': ' + msg.message);
 			}
 		}
 	}

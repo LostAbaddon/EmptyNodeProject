@@ -26,6 +26,8 @@ const createServer = (config, options) => {
 		mode: 'process',
 		title: config.name + " v" + config.version,
 	}).describe(setStyle(config.name + " v" + config.version, "bold"))
+	.addOption('--config -c <config> >> 指定配置文件')
+	.addOption('--process [process=auto] >> 指定进程数')
 	.addOption('--console [console] >> 启用控制台')
 	.addOption('--logLevel [logLevel=0] >> 日志输出等级')
 	.addOption('--logFile <logFile> >> 日志输出目录')
@@ -162,6 +164,8 @@ const createConsole = (config) => {
 	.add('stat >> 查看状态')
 	.setParam('<item> >> 查看项')
 	.addOption('--list -l >> 查看可用参数')
+	.add('local >> 本地操作')
+	.setParam('<command> >> 操作项')
 	.add('network >> Galanet 集群操作')
 	.addOption('--add <node> >> 添加集群友机节点')
 	.addOption('--remove <node> >> 移除集群友机节点')

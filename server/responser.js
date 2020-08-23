@@ -5,7 +5,7 @@ const Watcher = require('../kernel/watcher');
 const newLongID = _('Message.newLongID');
 const ModuleManager = _('Utils.ModuleManager');
 const Logger = new (_("Utils.Logger"))('Responsor');
-const SubProcessState = Symbol.setSymbols('IDLE', 'WAITING', 'WORKING', 'DIED');
+const SubProcessState = Symbol.setSymbols('IDLE', 'WAITING', 'WORKING', 'DYING', 'DIED');
 const HotfixModuleExtName = [ 'js', 'mjs', 'cjs', 'json' ];
 const NonAPIModulePrefix = '_';
 
@@ -19,7 +19,8 @@ const Config = {
 	process: 1,
 	services: [],
 	preprocessor: [],
-	postprocessor: []
+	postprocessor: [],
+	options: null
 };
 const TaskInfo = {
 	total: 0,
@@ -44,6 +45,7 @@ const forkChildren = (cfg, callback) => {
 	worker.taskTimespent = 0;
 	worker.taskEnergy = 1;
 	worker.taskPower = 0;
+	worker.dyingMessagers = [];
 	worker.launchTask = task => {
 		worker.state = SubProcessState.WORKING;
 		worker.taskQueue[task.tid] = task;
@@ -58,8 +60,22 @@ const forkChildren = (cfg, callback) => {
 	};
 	worker.suicide = () => {
 		worker.state = SubProcessState.DIED;
-		worker.send({ event: 'suicide' })
+		worker.send({ event: 'suicide' });
 	};
+	worker.dying = () => new Promise(res => {
+		if (worker.state === SubProcessState.IDLE || worker.state === SubProcessState.WAITING) {
+			worker.state = SubProcessState.DYING;
+			worker.dyingMessagers.push(res);
+			worker.send({ event: 'suicide' });
+		}
+		else if (worker.state === SubProcessState.WORKING) {
+			worker.state = SubProcessState.DYING;
+			worker.dyingMessagers.push(res);
+		}
+		else {
+			res();
+		}
+	});
 
 	worker.on('message', msg => {
 		if (msg.event === 'online') {
@@ -88,13 +104,19 @@ const forkChildren = (cfg, callback) => {
 			worker.taskEnergy = (average * 2 + used) / 3;
 			worker.taskPower = worker.taskEnergy * (1 + worker.taskCount - worker.taskDone);
 			delete worker.taskQueue[msg.id];
-			worker.state = SubProcessState.WAITING;
+
+			if (worker.state !== SubProcessState.DYING) {
+				worker.state = SubProcessState.WAITING;
+			}
 			Logger.log('Slaver-' + worker.pid + ' Job DONE! (' + worker.taskPower + ' | ' + worker.taskCount + ' / ' + worker.taskDone + ' / ' + worker.taskTimespent + ')');
 			if (PendingTasks.length > 0) {
 				let task = PendingTasks.shift();
 				worker.launchTask(task);
 			}
 			info.callback(msg.result);
+			if (worker.state === SubProcessState.DYING) {
+				worker.send({ event: 'suicide' });
+			}
 		}
 		else if (msg.event === 'command') {
 			process.emit(msg.action, msg.data);
@@ -113,6 +135,7 @@ const forkChildren = (cfg, callback) => {
 		Logger.log('Slaver Died: ' + worker.pid);
 		Slavers.remove(worker);
 
+		var dying = worker.state === SubProcessState.DYING;
 		var died = worker.state === SubProcessState.DIED;
 		worker.state = SubProcessState.DIED;
 		var err = new Errors.RuntimeError.SubProcessBrokenDown();
@@ -130,17 +153,24 @@ const forkChildren = (cfg, callback) => {
 		delete worker.taskDone;
 		delete worker.taskTimespent;
 		delete worker.taskPower;
-		if (!died) {
-			forkChildren();
+
+		if (dying) {
+			worker.dyingMessagers.forEach(res => res());
+			delete worker.dyingMessagers;
 		}
-		else if (MainProcessState === SubProcessState.DIED && Slavers.length === 0) {
-			destroyMonde();
+		else {
+			if (!died) {
+				forkChildren();
+			}
+			else if (MainProcessState === SubProcessState.DIED && Slavers.length === 0) {
+				destroyMonde();
+			}
 		}
 	});
 
 	Slavers.push(worker);
 };
-const launchWorkers = (cfg, callback) => {
+const launchWorkers = (cfg, callback) => new Promise(res => {
 	var total = Config.process, count = Config.process, init = false;
 	for (let i = 0; i < total; i ++) {
 		forkChildren(cfg, () => {
@@ -148,9 +178,17 @@ const launchWorkers = (cfg, callback) => {
 			count --;
 			if (count > 0) return;
 			init = true;
-			callback();
+			if (!!callback) callback();
+			res();
 		});
 	}
+});
+const restartWorkers = async () => {
+	var workers = Slavers.map(w => w);
+	Slavers.splice(0, Slavers.length);
+	workers = workers.map(worker => worker.dying());
+	workers.push(launchWorkers(Config.options));
+	await Promise.all(workers);
 };
 const loadProcessor = (list, modules) => {
 	modules.forEach(filepath => {
@@ -178,6 +216,7 @@ const setConfig = (cfg, callback) => {
 
 	if (Array.is(cfg.api.services)) Config.services.push(...cfg.api.services);
 	else if (String.is(cfg.api.services)) Config.services.push(cfg.api.services);
+	Config.options = cfg;
 
 	loadPrePostWidget(cfg);
 
@@ -548,6 +587,10 @@ module.exports = {
 	launchLocally: launchLocalResponsor,
 	extinct: extinctSlavers,
 	getUsage,
+	refresh: restartWorkers,
+	get processCount () {
+		return Slavers.length;
+	},
 	get preprocessor () {
 		return Config.preprocessor;
 	},
