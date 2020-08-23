@@ -14,6 +14,13 @@ process.on('console::stat::usage', (unuse, event, callback) => {
 process.on('console::stat::cluster', (unuse, event, callback) => {
 	callback(Galanet.getUsage());
 });
+// 重启本地子进程
+process.on('console::local::refresh', async (unuse, event, callback) => {
+	var time = Date.now();
+	await Responsor.refresh();
+	time = Date.now() - time;
+	callback(Responsor.processCount + ' 个工作进程已被更新，用时 ' + time + ' ms');
+});
 // 增加节点
 process.on('console::network::addNode', async (node, event, callback) => {
 	callback(...(await Galanet.addNode(node)));

@@ -158,6 +158,8 @@ const createConsole = (config) => {
 	.add('stat >> 查看状态')
 	.setParam('<item> >> 查看项')
 	.addOption('--list -l >> 查看可用参数')
+	.add('local >> 本地操作')
+	.setParam('<command> >> 操作项')
 	.add('network >> Galanet 集群操作')
 	.addOption('--add <node> >> 添加集群友机节点')
 	.addOption('--remove <node> >> 移除集群友机节点')
