@@ -32,7 +32,6 @@ const prepareRedis = redis => {
 			args.push(callback);
 			redis[FUN](...args);
 		});
-		console.log(fun, '    ', !!redis[fun], ' ', !!redis[fun.toUpperCase()]);
 	});
 };
 const newRedis = cfg => new Promise((res) => {
