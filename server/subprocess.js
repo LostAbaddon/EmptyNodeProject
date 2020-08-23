@@ -19,7 +19,8 @@ const setConfig = async cfg => {
 	}
 	ResponsorManager.loadProcessor(cfg);
 	await Galanet.setConfig(cfg);
-	_("Utils.MySQL.create")(cfg.mysql);
+	await _("Utils.Redis.create")(cfg.redis);
+	await _("Utils.MySQL.create")(cfg.mysql);
 
 	process.send({ event: 'ready' });
 };

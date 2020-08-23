@@ -24,6 +24,7 @@ const newConnection = cfg => {
 	});
 	sql.__end = sql.end;
 	sql.end = cb => {
+		Logger.info("Connection (" + id + ') Offline...');
 		Servers.delete(id);
 		sql.__end(cb);
 	};
@@ -54,6 +55,7 @@ const newPool = cfg => {
 	id = cfg.id;
 	sql.__end = sql.end;
 	sql.end = cb => {
+		Logger.info("Pool (" + id + ') Closed...');
 		Servers.delete(id);
 		sql.__end(cb);
 	};
@@ -87,6 +89,7 @@ const newCluster = cfg => {
 	id = cfg[0].id;
 	sql.__end = sql.end;
 	sql.end = cb => {
+		Logger.info("Cluster (" + id + ') Shutdowned...');
 		Servers.delete(id);
 		sql.__end(cb);
 	};

@@ -92,10 +92,11 @@ const createServer = (config, options) => {
 				process.exit();
 				return;
 			}
-			ResponsorManager.setConfig(cfg, () => {
+			ResponsorManager.setConfig(cfg, async () => {
 				if (!isMultiProcess && !isDelegator) {
 					// 如果在多线程模式，则数据库由各子进程来控制，主进程不用自己控制
-					_("Utils.MySQL.create")(cfg.mysql);
+					await _("Utils.Redis.create")(cfg.redis);
+					await _("Utils.MySQL.create")(cfg.mysql);
 				}
 				if (hooks.ready.length > 0) hooks.ready.forEach(cb => cb());
 				delete hooks.ready;
