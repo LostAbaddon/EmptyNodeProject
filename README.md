@@ -2,7 +2,7 @@
 
 空 Node.JS 项目。
 
-这里包含基础 Node.JS 代码库，可用于 Web（含 WebSocket）、TCP、UDP、Socket 的连接，支持多节点、多进程与多线程。
+这里包含基础 Node.JS 代码库，可用于 Web（含 WebSocket）、TCP、UDP、Socket 的连接，支持多节点、多进程与多线程，以及 MySQL、Redis 的基础功能。
 
 -	作者：Lostabaddon
 -	版本：0.1.7

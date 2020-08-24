@@ -2,8 +2,9 @@ const Redis = require('redis');
 const newLongID = _('Message.newLongID');
 const Logger = new (_("Utils.Logger"))('Redis');
 const AsyncFunctions = [
-	'set', 'setnx', 'setex', 'psetex', 'get', 'mset', 'msetnx', 'mget', 'append', 'incr', 'incrby', 'decr', 'decrby', 'strlen',
-	'hset', 'hsetnx', 'hget', 'hexists', 'hdel', 'hlen', 'hstrlen', 'hincrby', 'hmset', 'hmget', 'hkeys', 'hgetall'
+	'set', 'setnx', 'setex', 'psetex', 'get', 'mset', 'msetnx', 'mget', 'append', 'incr', 'incrby', 'decr', 'decrby', 'del', 'strlen',
+	'hset', 'hsetnx', 'hget', 'hexists', 'hdel', 'hlen', 'hstrlen', 'hincrby', 'hmset', 'hmget', 'hkeys', 'hgetall',
+	'expire', 'expireat', 'pexpire', 'pexpireat'
 ];
 
 const Servers = new Map();
@@ -58,10 +59,13 @@ const newRedis = cfg => new Promise((res) => {
 	});
 });
 const getRedis = id => Servers.get(id);
+const allRedis = () => [...Servers.keys()];
 
 _("Utils.Redis.create", newRedis);
 _("Utils.Redis.get", getRedis);
+_("Utils.Redis.all", allRedis);
 module.exports = {
 	create: newRedis,
-	get: getRedis
+	get: getRedis,
+	all: allRedis
 };

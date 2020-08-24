@@ -4,10 +4,40 @@ const Logger = new (_("Utils.Logger"))('MySQL');
 
 const Servers = new Map();
 
+const getConnTypeName = sql => sql.isConnection ? 'connection' : (sql.isPool ? 'pool' : 'cluster');
+const getClauseAction = clause => clause.match(/\b(insert|update|delete|alter|change|drop column)\b/i);
+const beforeQuery = (sql, clause) => {
+	var type = getConnTypeName(sql);
+	var action = getClauseAction(clause);
+	sql.emit('sql::query', type, clause);
+	if (!!action) {
+		action = action[0].toLowerCase().split(' ')[0];
+		sql.emit('sql::' + action, type, clause);
+	}
+	return action;
+};
+const afterQueryFailed = (sql, action, clause, err) => {
+	var type = getConnTypeName(sql);
+	sql.emit('sql::query::error', type, clause, err);
+	if (!!action) {
+		sql.emit('sql::' + action + '::error', type, clause, err);
+	}
+};
+const afterQuerySuccess = (sql, action, clause, result) => {
+	var type = getConnTypeName(sql);
+	sql.emit('sql::query::success', type, clause, result);
+	if (!!action) {
+		sql.emit('sql::' + action + '::success', type, clause, result);
+	}
+};
+
 const newSQL = cfg => {
-	if (Array.is(cfg)) return newCluster(cfg);
-	if (Number.is(cfg.connectionLimit)) return newPool(cfg);
-	return newConnection(cfg);
+	var sql;
+	if (Array.is(cfg)) sql = newCluster(cfg);
+	else if (Number.is(cfg.connectionLimit)) sql = newPool(cfg);
+	else sql = newConnection(cfg);
+
+	return sql;
 };
 const newConnection = cfg => {
 	cfg.id = cfg.id || newLongID();
@@ -30,10 +60,17 @@ const newConnection = cfg => {
 	};
 	sql.__query = sql.query;
 	sql.query = (clause, callback) => new Promise((res, rej) => {
+		var action = beforeQuery(sql, clause);
 		sql.__query(clause, (err, results, fields) => {
 			if (!!callback) callback(err, results, fields);
-			if (!!err) rej(err);
-			else res(results)
+			if (!!err) {
+				rej(err);
+				afterQueryFailed(sql, action, clause, err);
+			}
+			else {
+				res(results)
+				afterQuerySuccess(sql, action, clause, results);
+			}
 		});
 	});
 	sql.isConnection = true;
@@ -61,10 +98,17 @@ const newPool = cfg => {
 	};
 	sql.__query = sql.query;
 	sql.query = (clause, callback) => new Promise((res, rej) => {
+		var action = beforeQuery(sql, clause);
 		sql.__query(clause, (err, results, fields) => {
 			if (!!callback) callback(err, results, fields);
-			if (!!err) rej(err);
-			else res(results)
+			if (!!err) {
+				rej(err);
+				afterQueryFailed(sql, action, clause, err);
+			}
+			else {
+				res(results)
+				afterQuerySuccess(sql, action, clause, results);
+			}
 		});
 	});
 	sql.isConnection = false;
@@ -97,10 +141,17 @@ const newCluster = cfg => {
 	sql.query = (clause, callback) => new Promise((res, rej) => {
 		sql.getConnection((err, conn) => {
 			if (!!err) return rej(err);
+			var action = beforeQuery(sql, clause);
 			conn.query(clause, (err, results, fields) => {
 				if (!!callback) callback(err, results, fields);
-				if (!!err) rej(err);
-				else res(results);
+				if (!!err) {
+					rej(err);
+					afterQueryFailed(sql, action, clause, err);
+				}
+				else {
+					res(results)
+					afterQuerySuccess(sql, action, clause, results);
+				}
 			});
 		});
 	});
