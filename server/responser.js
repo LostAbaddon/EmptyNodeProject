@@ -172,6 +172,11 @@ const forkChildren = (cfg, callback) => {
 };
 const launchWorkers = (cfg, callback) => new Promise(res => {
 	var total = Config.process, count = Config.process, init = false;
+	if (total < 1) {
+		if (!!callback) callback();
+		res();
+		return;
+	}
 	for (let i = 0; i < total; i ++) {
 		forkChildren(cfg, () => {
 			if (init) return;
@@ -184,6 +189,7 @@ const launchWorkers = (cfg, callback) => new Promise(res => {
 	}
 });
 const restartWorkers = async () => {
+	if (!isMultiProcess) return;
 	var workers = Slavers.map(w => w);
 	Slavers.splice(0, Slavers.length);
 	workers = workers.map(worker => worker.dying());
