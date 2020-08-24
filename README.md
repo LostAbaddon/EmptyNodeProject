@@ -51,8 +51,9 @@
 ## 计划
 
 -	增加全局状态变量 (master: working)
--	增加 Ising 协议，用于分布式共识 (master: working)
--	API 端口的访问闸限流机制，避免并发过高 (mater: working)
+-	API 端口的访问闸限流机制，避免并发过高 (mater)
+-	增加 Ising 协议，用于分布式共识 (master)
+-	多节点数据用socket中转而非读取后写出到端 (master)
 -	主分支：支持根据任务类型进行多节点任务调配，而非统一任务调配
 
 ## 代码仓库
