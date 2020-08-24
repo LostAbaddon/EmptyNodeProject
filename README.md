@@ -41,11 +41,18 @@
 
 该分支提供 MySQl 和 Redis 支持，以及一些基于它们的基础功能。
 
+-	MySQL 模块
+	基于 Node-MySQL 库
+-	Redis 模块
+	基于 Node-Redis 库
+-	缓存关联表（withDB: working）
+	使用 Redis 对 MySQL 做缓存，并自动管理过期时间
+
 ## 计划
 
--	MySQL 模块 (withDB: working)
--	Redis 模块 (withDB: working)
+-	增加全局状态变量 (master: working)
 -	增加 Ising 协议，用于分布式共识 (master: working)
+-	API 端口的访问闸限流机制，避免并发过高 (mater: working)
 -	主分支：支持根据任务类型进行多节点任务调配，而非统一任务调配
 
 ## 代码仓库
