@@ -6,6 +6,7 @@ const Logger = new (_("Utils.Logger"))('CacheDB');
  *  前者是 Redis 强制过期，后者是每次访问时检验是否过期
  *  同时，修改数据表也会导致缓存更新。
  *  短时限超过后可以有一次读取，但读取的同时缓存会被删除；长时限是Redis自动删除。每次写入都会自动更新短时限。
+ *  indexes 中的键名必须是唯一性的键名，否则缓存会出现问题
  */
 class CachedTable {
 	#mysql = null;
@@ -65,7 +66,7 @@ class CachedTable {
 	async #set (id, data) {
 		var args = [id];
 		args.push("__timestamp__");
-		args.push(Date.now() + this.#shortExp + Math.random() * this.#saltExp);
+		args.push(Date.now() + this.#shortExp + Math.random() * this.#saltExp * 1000);
 		for (let key in data) {
 			args.push(key);
 			args.push(JSON.stringify(data[key]));
@@ -78,7 +79,7 @@ class CachedTable {
 		// 先读取Redis，如果有则返回，同时检查是否短超时，如果超了则删除缓存
 		// 如果没有缓存则读取MySQL，如果有则更新Redis中各键值缓存，同时返回
 
-		if (Function.is(value)) {
+		if (Function.is(value) || (value === undefined && callback === undefined)) {
 			callback = value;
 			value = key;
 			key = 'id';
@@ -87,11 +88,12 @@ class CachedTable {
 		var result = null;
 		var shouldCache = this.#range.includes(key);
 		// 读取Redis中缓存
-		if (shouldCache) {
+		if (this.#range.includes(key)) {
 			let id = this.#getCacheName(key, value);
 			try {
 				result = await this.#get(id);
 				if (!!result) {
+					result = [result];
 					if (!!callback) callback(result);
 					return result;
 				}
@@ -104,35 +106,198 @@ class CachedTable {
 		// 从数据库读取
 		try {
 			result = await this.#mysql.query("select * from " + this.#table + " where " + key + '="' + value + '"');
-			if (!!result) result = result[0];
+			if (!Array.is(result)) result = [];
 		}
 		catch {
-			result = null;
+			result = [];
 		}
-		// 更新Redis中缓存
-		if (shouldCache && !!result) {
+		// 逐条更新Redis中缓存
+		result.forEach(res => {
 			// 更新同一条记录在各KEY值上的缓存
 			this.#range.forEach(k => {
-				var kvl = result[k];
+				var kvl = res[k];
 				if (!kvl) return;
 				var kid = this.#getCacheName(k, kvl);
 				try {
-					this.#set(kid, result);
+					this.#set(kid, res);
 				}
 				catch (err) {
 					Logger.error('SCT 设置对象 ' + kid + ' 失败： ' + err.message);
 				}
 			});
-		}
+		});
 
 		if (!!callback) callback(result);
 		return result;
 	}
-	async set (key, value, newValue, callback) {
+	async all (callback) {
+		var table;
+		try {
+			table = await this.#mysql.query('select * from ' + this.#table);
+		}
+		catch (err) {
+			Logger.error("SCT 获取全部数据失败：" + err.message);
+			table = [];
+		}
+		if (!!callback) callback(table);
+		return table;
+	}
+	async set (key, value, data, callback) {
+		// 规则：
+		// 先判断指定的key是否是缓存的key，如果是则读取缓存内容
+		// 如果没有缓存内容或者不是缓存的key，则从数据库读取数据
+
+		if (Function.is(data) || (data === undefined && callback === undefined)) {
+			callback = data;
+			data = value;
+			value = key;
+			key = 'id';
+		}
+
+		// 获取Redis中缓存，因为缓存索引用的index要求唯一性，所以即便插数据库也只可能得到一条结果
+		var noCache = true, caches;
+		if (this.#range.includes(key)) {
+			let id = this.#getCacheName(key, value);
+			try {
+				let cache = this.#redis.hgetall(id);
+				if (!!cache && (cache[key] === value)) {
+					caches = [cache];
+					noCache = false;
+				}
+				else {
+					noCache = true;
+				}
+			}
+			catch {
+				noCache = true;
+			}
+		}
+
+		// 如果没有缓存，则从数据库中读取
+		if (noCache) {
+			try {
+				let items = await this.#mysql.query("select * from " + this.#table + " where " + key + '="' + value + '"');
+				if (Array.is(items)) caches = items;
+			}
+			catch (err) {
+				Logger.log('SCT 修改值前读取原有值失败：' + err.message);
+				return false;
+			}
+		}
+
+		// 先更新MySQL中记录
+		var sql = [];
+		for (let key in data) {
+			let value = data[key];
+			sql.push(key + '=' + JSON.stringify(value)); 
+		}
+		sql = 'update ' + this.#table + ' set ' + sql.join(', ') + ' where ' + key + '=' + JSON.stringify(value);
+		var changed = 0;
+		try {
+			let res = await this.#mysql.query(sql);
+			if (!!res) changed = res.changedRows;
+		} catch (err) {
+			Logger.error("SCT 修改值失败：" + err.message);
+		}
+
+		// 如果没成功修改，则直接退出
+		if (changed === 0) return false;
+
+		// 如果修改条数和缓存条目数不同，则将缓存全部清除
+		if (changed !== caches.length) {
+			await Promise.all(caches.map(async cache => {
+				await Promise.all(this.#range.map(async key => {
+					var id = this.#getCacheName(key, cache[key]);
+					await this.#redis.del(id);
+				}));
+			}));
+		}
+		// 否则，更新缓存记录
+		else {
+			await Promise.all(caches.map(async cache => {
+				// 找出哪些要被删除，哪些只需要更新
+				var dels = [];
+				for (let key in data) {
+					let oldV = cache[key], newV = data[key];
+					if (oldV !== newV) {
+						if (oldV !== null && oldV !== undefined) dels.push(this.#getCacheName(key, oldV));
+					}
+					cache[key] = data[key];
+				}
+				await Promise.all([...this.#range.map(async key => {
+					var id = this.#getCacheName(key, cache[key]);
+					await this.#set(id, cache);
+				}), ...dels.map(async id => {
+					await this.#redis.del(id);
+				})])
+			}));
+		}
+		return true;
 	}
 	async del (key, value, callback) {
+		// 规则：
+		// 先判断指定的key是否是缓存的key，如果是则读取缓存内容
+		// 如果没有缓存内容或者不是缓存的key，则从数据库读取数据
+
+		if (Function.is(value) || (value === undefined && callback === undefined)) {
+			callback = value;
+			value = key;
+			key = 'id';
+		}
+
+		// 获取Redis中缓存，因为缓存索引用的index要求唯一性，所以即便插数据库也只可能得到一条结果
+		var noCache = true, caches;
+		if (this.#range.includes(key)) {
+			let id = this.#getCacheName(key, value);
+			try {
+				let cache = this.#redis.hgetall(id);
+				if (!!cache && (cache[key] === value)) {
+					caches = [cache];
+					noCache = false;
+				}
+				else {
+					noCache = true;
+				}
+			}
+			catch {
+				noCache = true;
+			}
+		}
+
+		// 如果没有缓存，则从数据库中读取
+		if (noCache) {
+			try {
+				let items = await this.#mysql.query("select * from " + this.#table + " where " + key + '="' + value + '"');
+				if (Array.is(items)) caches = items;
+			}
+			catch (err) {
+				Logger.log('SCT 删除值前读取原有值失败：' + err.message);
+				return false;
+			}
+		}
+
+		// 从数据库删除目标值
+		var sql = [];
+		for (let key in data) {
+			let value = data[key];
+			sql.push(key + '=' + JSON.stringify(value)); 
+		}
+		sql = 'delete from ' + this.#table + ' where ' + key + '=' + JSON.stringify(value);
+		try {
+			let res = await this.#mysql.query(sql);
+		} catch (err) {
+			Logger.error("SCT 修改值失败：" + err.message);
+		}
+
+		// 删除缓存
+		await Promise.all(caches.map(async cache => {
+			await Promise.all(this.#range.map(async key => {
+				var id = this.#getCacheName(key, cache[key]);
+				await this.#redis.del(id);
+			}));
+		}));
 	}
-	async put (newValue, callback) {
+	async add (newValue, callback) {
 	}
 	async expire (key, value) {
 		if (value === undefined) {
