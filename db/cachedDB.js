@@ -104,11 +104,13 @@ class CachedTable {
 			}
 		}
 		// 从数据库读取
+		var sql = "select * from " + this.#table + " where " + key + '="' + value + '"';
 		try {
-			result = await this.#mysql.query("select * from " + this.#table + " where " + key + '="' + value + '"');
+			result = await this.#mysql.query(sql);
 			if (!Array.is(result)) result = [];
 		}
-		catch {
+		catch (err) {
+			Logger.error("SCT 读取值失败：" + err.message + "\nSQL: " + sql);
 			result = [];
 		}
 		// 逐条更新Redis中缓存
@@ -131,12 +133,12 @@ class CachedTable {
 		return result;
 	}
 	async all (callback) {
-		var table;
+		var table, sql = 'select * from ' + this.#table;
 		try {
-			table = await this.#mysql.query('select * from ' + this.#table);
+			table = await this.#mysql.query(sql);
 		}
 		catch (err) {
-			Logger.error("SCT 获取全部数据失败：" + err.message);
+			Logger.error("SCT 获取全部数据失败：" + err.message + "\nSQL: " + sql);
 			table = [];
 		}
 		if (!!callback) callback(table);
@@ -175,12 +177,13 @@ class CachedTable {
 
 		// 如果没有缓存，则从数据库中读取
 		if (noCache) {
+			let sql = "select * from " + this.#table + " where " + key + '="' + value + '"';
 			try {
-				let items = await this.#mysql.query("select * from " + this.#table + " where " + key + '="' + value + '"');
+				let items = await this.#mysql.query(sql);
 				if (Array.is(items)) caches = items;
 			}
 			catch (err) {
-				Logger.log('SCT 修改值前读取原有值失败：' + err.message);
+				Logger.log('SCT 修改值前读取原有值失败：' + err.message + "\nSQL: " + sql);
 				if (!!callback) callback(false);
 				return false;
 			}
@@ -198,7 +201,7 @@ class CachedTable {
 			let res = await this.#mysql.query(sql);
 			if (!!res) changed = res.changedRows;
 		} catch (err) {
-			Logger.error("SCT 修改值失败：" + err.message);
+			Logger.error("SCT 修改值失败：" + err.message + "\nSQL: " + sql);
 		}
 
 		// 如果没成功修改，则直接退出
@@ -248,12 +251,12 @@ class CachedTable {
 			names.push(key);
 			values.push(JSON.stringify(value));
 		}
-		sql = 'insert into ' + this.#table + ' (' + names.join(', ') + ') values (' + values.join(', ') + ')';
+		var sql = 'insert into ' + this.#table + ' (' + names.join(', ') + ') values (' + values.join(', ') + ')';
 		var ok = true;
 		try {
 			await this.#mysql.query(sql);
 		} catch (err) {
-			Logger.error("SCT 添加值失败：" + err.message);
+			Logger.error("SCT 添加值失败：" + err.message + "\nSQL: " + sql);
 			ok = false;
 		}
 		if (!!callback) callback(ok);
@@ -291,28 +294,24 @@ class CachedTable {
 
 		// 如果没有缓存，则从数据库中读取
 		if (noCache) {
+			let sql = "select * from " + this.#table + " where " + key + '="' + value + '"';
 			try {
-				let items = await this.#mysql.query("select * from " + this.#table + " where " + key + '="' + value + '"');
+				let items = await this.#mysql.query(sql);
 				if (Array.is(items)) caches = items;
 			}
 			catch (err) {
-				Logger.log('SCT 删除值前读取原有值失败：' + err.message);
+				Logger.log('SCT 删除值前读取原有值失败：' + err.message + "\nSQL: " + sql);
 				if (!!callback) callback(false);
 				return false;
 			}
 		}
 
 		// 从数据库删除目标值
-		var sql = [];
-		for (let key in data) {
-			let value = data[key];
-			sql.push(key + '=' + JSON.stringify(value)); 
-		}
-		sql = 'delete from ' + this.#table + ' where ' + key + '=' + JSON.stringify(value);
+		var sql = 'delete from ' + this.#table + ' where ' + key + '=' + JSON.stringify(value);
 		try {
 			await this.#mysql.query(sql);
 		} catch (err) {
-			Logger.error("SCT 修改值失败：" + err.message);
+			Logger.error("SCT 删除值失败：" + err.message + "\nSQL: " + sql);
 		}
 
 		// 删除缓存
