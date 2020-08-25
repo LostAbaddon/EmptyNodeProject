@@ -190,11 +190,13 @@ const launchWorkers = (cfg, callback) => new Promise(res => {
 });
 const restartWorkers = async () => {
 	if (!isMultiProcess) return;
+	processStat = ProcessStat.INIT;
 	var workers = Slavers.map(w => w);
 	Slavers.splice(0, Slavers.length);
 	workers = workers.map(worker => worker.dying());
 	workers.push(launchWorkers(Config.options));
 	await Promise.all(workers);
+	processStat = ProcessStat.READY;
 };
 const loadProcessor = (list, modules) => {
 	modules.forEach(filepath => {
@@ -406,6 +408,8 @@ const matchResponsor = (url, method, source) => {
 	return [res, query];
 };
 const launchResponsor = (responsor, param, query, url, data, method, source, ip, port) => new Promise(async res => {
+	if (processStat !== ProcessStat.READY) return;
+
 	var result;
 	if (url.substr(0, 1) !== '/') url = '/' + url;
 	if (url.indexOf('/galanet/') === 0) {
