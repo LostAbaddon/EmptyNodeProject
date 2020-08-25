@@ -103,6 +103,7 @@ const createServer = (config, options) => {
 				var list = hooks.ready.copy();
 				delete hooks.ready;
 				await Promise.all(list.map(async cb => await cb()));
+
 				global.processStat = global.ProcessStat.READY;
 			});
 			logger.setOutput(cfg.logFile);
