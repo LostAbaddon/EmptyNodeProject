@@ -12,10 +12,14 @@ const consoleServer = require('./server/console');
 const ResponsorManager = require('./server/responser');
 const CLP = _('CL.CLP');
 const setStyle = _('CL.SetStyle');
-
 const DefailtIPC = '/tmp/console.ipc';
 
+global.ProcessStat = Symbol.set('IDLE', 'INIT', 'READY', 'DEAD');
+global.processStat = global.ProcessStat.IDLE;
+
 const createServer = (config, options) => {
+	global.processStat = global.ProcessStat.INIT;
+
 	var hooks = {
 		start: [],
 		ready: []
@@ -68,6 +72,7 @@ const createServer = (config, options) => {
 
 		// Load Responsors
 		if (!cfg.api) {
+			global.processStat = global.ProcessStat.DEAD;
 			let err = new Errors.ConfigError.NoResponsor();
 			console.error(err.message);
 			console.error(setStyle(config.welcome.failed, 'bold red'));
@@ -90,6 +95,7 @@ const createServer = (config, options) => {
 			if (ok) success ++;
 			if (count !== 0) return;
 			if (success === 0) {
+				global.processStat = global.ProcessStat.DEAD;
 				console.error(setStyle(config.welcome.failed, 'bold red'));
 				process.exit();
 				return;
@@ -102,8 +108,12 @@ const createServer = (config, options) => {
 						_("Utils.MySQL.create")(cfg.mysql)
 					]);
 				}
-				if (hooks.ready.length > 0) hooks.ready.forEach(cb => cb());
+
+				var list = hooks.ready.copy();
 				delete hooks.ready;
+				await Promise.all(list.map(async cb => await cb()));
+
+				global.processStat = global.ProcessStat.READY;
 			});
 			logger.setOutput(cfg.logFile);
 			console.log(setStyle(config.welcome.success, 'bold green'));
@@ -158,6 +168,8 @@ const createServer = (config, options) => {
 	return clp;
 };
 const createConsole = (config) => {
+	global.processStat = global.ProcessStat.INIT;
+
 	const clp = CLP({
 		mode: 'process',
 		title: config.name + " v" + config.version,
@@ -176,6 +188,7 @@ const createConsole = (config) => {
 	.on('command', (param, command) => {
 		if (String.is(param.ipc)) config.ipc = param.ipc;
 		clp.socketPipe = config.ipc;
+		global.processStat = global.ProcessStat.READY;
 		consoleServer.deal(param, config);
 	});
 
