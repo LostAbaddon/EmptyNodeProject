@@ -181,6 +181,7 @@ class CachedTable {
 			}
 			catch (err) {
 				Logger.log('SCT 修改值前读取原有值失败：' + err.message);
+				if (!!callback) callback(false);
 				return false;
 			}
 		}
@@ -201,7 +202,10 @@ class CachedTable {
 		}
 
 		// 如果没成功修改，则直接退出
-		if (changed === 0) return false;
+		if (changed === 0) {
+			if (!!callback) callback(false);
+			return false;
+		}
 
 		// 如果修改条数和缓存条目数不同，则将缓存全部清除
 		if (changed !== caches.length) {
@@ -232,7 +236,28 @@ class CachedTable {
 				})])
 			}));
 		}
+		if (!!callback) callback(true);
 		return true;
+	}
+	async add (data, callback) {
+		// 由于写入数据可能不全，比如自增id很可能就不包含在其中，所以不做缓存
+
+		var names = [], values = [];
+		for (let key in data) {
+			let value = data[key];
+			names.push(key);
+			values.push(JSON.stringify(value));
+		}
+		sql = 'insert into ' + this.#table + ' (' + names.join(', ') + ') values (' + values.join(', ') + ')';
+		var ok = true;
+		try {
+			await this.#mysql.query(sql);
+		} catch (err) {
+			Logger.error("SCT 添加值失败：" + err.message);
+			ok = false;
+		}
+		if (!!callback) callback(ok);
+		return ok;
 	}
 	async del (key, value, callback) {
 		// 规则：
@@ -272,6 +297,7 @@ class CachedTable {
 			}
 			catch (err) {
 				Logger.log('SCT 删除值前读取原有值失败：' + err.message);
+				if (!!callback) callback(false);
 				return false;
 			}
 		}
@@ -284,7 +310,7 @@ class CachedTable {
 		}
 		sql = 'delete from ' + this.#table + ' where ' + key + '=' + JSON.stringify(value);
 		try {
-			let res = await this.#mysql.query(sql);
+			await this.#mysql.query(sql);
 		} catch (err) {
 			Logger.error("SCT 修改值失败：" + err.message);
 		}
@@ -296,23 +322,32 @@ class CachedTable {
 				await this.#redis.del(id);
 			}));
 		}));
+
+		if (!!callback) callback(true);
+		return true;
 	}
-	async add (newValue, callback) {
-	}
-	async expire (key, value) {
-		if (value === undefined) {
+	async expire (key, value, callback) {
+		if (Function.is(value) || (value === undefined && callback === undefined)) {
+			callback = value;
 			value = key;
 			key = 'id';
 		}
+
 		var shouldCache = this.#range.includes(key);
-		if (!shouldCache) return false;
+		if (!shouldCache) {
+			if (!!callback) callback(false);
+			return false;
+		}
 		var id = this.#getCacheName(key, value);
 		try {
 			let num = await this.#redis.del(id);
-			return num > 0;
+			num = num > 0;
+			if (!!callback) callback(num);
+			return num;
 		}
 		catch (err) {
 			Logger.error('SCT 删除 ' + id + ' 失败： ' + err.message);
+			if (!!callback) callback(false);
 			return false;
 		}
 	}
