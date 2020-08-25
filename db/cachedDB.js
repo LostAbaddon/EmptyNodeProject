@@ -352,7 +352,51 @@ class CachedTable {
 	}
 }
 
+// 自动配置缓存表
+const autoCacheTable = (mysql, redis, cfg) => {
+	if (!mysql || !redis || !cfg || !cfg.tables) return null;
+
+	var longE = cfg.longExpire || 3600 * 24; // 长周期默认为一天
+	var shortE = cfg.shortExpire || 3600 * 12; // 短周期默认为半天
+	var saltE = cfg.saltExpire || 3600 * 2; // 过期周期随机范围为两小时
+	var tables = {};
+
+	if (Array.is(cfg.tables)) {
+		for (let item of cfg.tables) {
+			let table = item.table;
+			if (!table) continue;
+			if (!item.indexes) item.indexes = ['id'];
+			else if (String.is(item.indexes)) item.indexes = [item.indexes];
+			else if (!Array.is(item.indexes)) continue;
+			tables[table] = new CachedTable(mysql, redis,
+				table, item.indexes,
+				item.longExpire || item.lExpire || item.longE || longE,
+				item.shortExpire || item.sExpire || item.shortE || shortE,
+				item.saltExpire || item.saltE || saltE
+			);
+		}
+	}
+	else {
+		for (let table in cfg.tables) {
+			let item = cfg.tables[table];
+			if (!item.indexes) item.indexes = ['id'];
+			else if (String.is(item.indexes)) item.indexes = [item.indexes];
+			else if (!Array.is(item.indexes)) continue;
+			tables[table] = new CachedTable(mysql, redis,
+				table, item.indexes,
+				item.longExpire || item.lExpire || item.longE || longE,
+				item.shortExpire || item.sExpire || item.shortE || shortE,
+				item.saltExpire || item.saltE || saltE
+			);
+		}
+	}
+
+	return tables;
+};
+
 _("Utils.CachedDB.table", CachedTable);
+_("Utils.CachedDB.auto", autoCacheTable);
 module.exports = {
-	CachedTable
+	CachedTable,
+	auto: autoCacheTable
 };
