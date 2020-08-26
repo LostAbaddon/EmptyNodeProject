@@ -193,16 +193,6 @@ const launchWorkers = (cfg, callback) => new Promise(res => {
 		});
 	}
 });
-const restartWorkers = async () => {
-	if (!isMultiProcess) return;
-	processStat = ProcessStat.INIT;
-	var workers = Slavers.map(w => w);
-	Slavers.splice(0, Slavers.length);
-	workers = workers.map(worker => worker.dying());
-	workers.push(launchWorkers(Config.options));
-	await Promise.all(workers);
-	processStat = ProcessStat.READY;
-};
 const loadProcessor = (list, modules) => {
 	modules.forEach(filepath => {
 		filepath = Path.join(process.cwd(), filepath);
@@ -267,6 +257,25 @@ const setConcurrence = count => {
 	}
 	return false;
 };
+const setProcessCount = count => {
+	if (count >= 0) {
+		Config.process = count;
+		Config.options.process = count;
+		return true;
+	}
+	return false;
+};
+const restartWorkers = async () => {
+	if (!isMultiProcess) return;
+	processStat = ProcessStat.INIT;
+	var workers = Slavers.map(w => w);
+	Slavers.splice(0, Slavers.length);
+	workers = workers.map(worker => worker.dying());
+	workers.push(launchWorkers(Config.options));
+	await Promise.all(workers);
+	processStat = ProcessStat.READY;
+};
+
 const loadPrePostWidget = cfg => {
 	if (!!cfg.api?.preprocessor) {
 		loadProcessor(Config.preprocessor, cfg.api.preprocessor);
@@ -383,6 +392,7 @@ const loadResponsors = async (path, monitor=true) => {
 
 	list.forEach(filepath => loadResponseFile(path, filepath));
 };
+
 const matchResponsor = (url, method, source) => {
 	var res = ResponsorMap[url], query = {}, didMatch = false;
 	if (!!res) {
@@ -545,6 +555,7 @@ const launchLocalResponsor = (responsor, param, query, url, data, method, source
 	worker = worker[0];
 	worker.launchTask(task);
 });
+
 const extinctSlavers = () => {
 	if (isSlaver) return;
 
@@ -571,6 +582,7 @@ const destroyMonde = () => {
 	}
 	process.exit();
 };
+
 const getUsage = () => {
 	var result = {};
 	result.isDelegator = global.isDelegator;
@@ -615,6 +627,7 @@ module.exports = {
 	launch: launchResponsor,
 	launchLocally: launchLocalResponsor,
 	setConcurrence,
+	setProcessCount,
 	extinct: extinctSlavers,
 	getUsage,
 	refresh: restartWorkers,

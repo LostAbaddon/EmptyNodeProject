@@ -21,6 +21,11 @@ process.on('console::local::refresh', async (unuse, event, callback) => {
 	time = Date.now() - time;
 	callback(Responsor.processCount + ' 个工作进程已被更新，用时 ' + time + ' ms');
 });
+// 设置业务子进程数
+process.on('console::local::set::subprocess', async (data, event, callback) => {
+	var ok = Responsor.setProcessCount(data);
+	callback('设置业务进程数' + (ok ? '成功' : '失败') + '，重启业务子进程后生效');
+});
 // 设置并发数
 process.on('console::local::set::concurrence', async (data, event, callback) => {
 	var ok = Responsor.setConcurrence(data);

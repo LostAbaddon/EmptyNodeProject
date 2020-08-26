@@ -5,7 +5,7 @@ const Logger = new (_("Utils.Logger"))('ConsoleManager');
 const ConsoleEventTag = 'console::';
 const ConsoleHelp = {
 	stat: 'usage\t\t\t查看各子进程负载情况\ncluster\t\t\t查看 Galanet 中友节点',
-	local: 'refresh\t\t\t重启业务子进程\nset-concurrence\t\t设置业务进程请求并发数',
+	local: 'refresh\t\t\t重启业务子进程\nset-process\t\t设置业务进程数\nset-concurrence\t\t设置业务进程请求并发数',
 };
 
 const sockets = [];
@@ -142,6 +142,14 @@ const deal = async (param, config) => {
 				name: 'local',
 				target: cmds.local,
 				event: 'local::set::concurrence',
+				data: cmds.local.command[1]
+			});
+		}
+		else if (cmds.local.command.includes('set-process')) {
+			req.push({
+				name: 'local',
+				target: cmds.local,
+				event: 'local::set::subprocess',
 				data: cmds.local.command[1]
 			});
 		}
