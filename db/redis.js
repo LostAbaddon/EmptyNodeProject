@@ -17,6 +17,9 @@ const prepareRedis = redis => {
 			if (Function.is(cb)) {
 				args.pop();
 				callback = (err, ...args) => {
+					if (!!err) {
+						err = new Errors.Database.Redis.TransactionFailed(err.message + '\ntransaction: ' + fun + '\nparams: ' + JSON.stringify(args));
+					}
 					cb(err, ...args);
 					if (!!err) return rej(err);
 					if (args.length <= 1) return res(args[0]);
@@ -25,7 +28,10 @@ const prepareRedis = redis => {
 			}
 			else {
 				callback = (err, ...args) => {
-					if (!!err) return rej(err);
+					if (!!err) {
+						err = new Errors.Database.Redis.TransactionFailed(err.message + '\ntransaction: ' + fun + '\nparams: ' + JSON.stringify(args));
+						return rej(err);
+					}
 					if (args.length <= 1) return res(args[0]);
 					res(args);
 				};
@@ -46,7 +52,8 @@ const newRedis = cfg => new Promise((res) => {
 	id = cfg.id;
 	redis = Redis.createClient(cfg);
 	redis.on("error", err => {
-		Logger.error("Redis(" + id + ") Error(" + err.code + "): " + err.message);
+		Logger.error("Redis(" + id + ") Error: " + err.message);
+		err = new Errors.Database.Redis.ConnectFailed(err.message);
 		res(null);
 	});
 	redis.on("connect", async () => {
@@ -55,6 +62,9 @@ const newRedis = cfg => new Promise((res) => {
 		res(redis);
 	});
 	redis.on("end", err => {
+		if (!!err) {
+			Logger.error("Redis(" + id + ") End with Error: " + err.message);
+		}
 		Servers.delete(id);
 	});
 });

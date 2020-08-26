@@ -55,5 +55,15 @@ Errors.GalanetError.UnavailableNodeAddress = new BlackHole("无法解析的节�
 Errors.GalanetError.NoSuchNode = new BlackHole("当前集群中无指定节点", "GLN-00007", "NoSuchNode");
 Errors.GalanetError.Unauthorized = new BlackHole("无权限调用本接口", "GLN-00008", "Unauthorized");
 
+Errors.Database = {};
+Errors.Database.MySQL = {};
+Errors.Database.MySQL.GetConnectionFailed = new BlackHole("MySQL 获取连接失败", "SQL-00001", "GetConnectionFailed");
+Errors.Database.MySQL.ConnQueryFailed = new BlackHole("MySQL 操作失败", "SQL-00002", "ConnQueryFailed");
+Errors.Database.MySQL.PoolQueryFailed = new BlackHole("MySQL 操作失败", "SQL-00003", "PoolQueryFailed");
+Errors.Database.MySQL.ClusterQueryFailed = new BlackHole("MySQL 操作失败", "SQL-00004", "ClusterQueryFailed");
+Errors.Database.Redis = {};
+Errors.Database.Redis.ConnectFailed = new BlackHole("Redis 连接失败", "RDS-00001", "ConnectFailed");
+Errors.Database.Redis.TransactionFailed = new BlackHole("Redis 操作失败", "RDS-00001", "TransactionFailed");
+
 global.BlackHole = BlackHole;
 global.Errors = Errors;

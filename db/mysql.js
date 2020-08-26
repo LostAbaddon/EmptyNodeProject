@@ -60,8 +60,10 @@ const newConnection = cfg => {
 	};
 	sql.__query = sql.query;
 	sql.query = (clause, callback) => new Promise((res, rej) => {
+		Logger.info('MySQL操作: ' + clause);
 		var action = beforeQuery(sql, clause);
 		sql.__query(clause, (err, results, fields) => {
+			if (!!err) err = new Errors.Database.MySQL.ConnQueryFailed(err.message + '\ntransaction: ' + clause);
 			if (!!callback) callback(err, results, fields);
 			if (!!err) {
 				rej(err);
@@ -98,8 +100,10 @@ const newPool = cfg => {
 	};
 	sql.__query = sql.query;
 	sql.query = (clause, callback) => new Promise((res, rej) => {
+		Logger.info('MySQL池操作: ' + clause);
 		var action = beforeQuery(sql, clause);
 		sql.__query(clause, (err, results, fields) => {
+			if (!!err) err = new Errors.Database.MySQL.PoolQueryFailed(err.message + '\ntransaction: ' + clause);
 			if (!!callback) callback(err, results, fields);
 			if (!!err) {
 				rej(err);
@@ -140,9 +144,15 @@ const newCluster = cfg => {
 	sql.__query = sql.query;
 	sql.query = (clause, callback) => new Promise((res, rej) => {
 		sql.getConnection((err, conn) => {
-			if (!!err) return rej(err);
+			if (!!err) {
+				Logger.error('MySQL 集群获取连接失败: ' + err.message);
+				err = new Errors.Database.MySQL.GetConnectionFailed(err.message);
+				return rej(err);
+			}
+			Logger.info('MySQL集群操作: ' + clause);
 			var action = beforeQuery(sql, clause);
 			conn.query(clause, (err, results, fields) => {
+				if (!!err) err = new Errors.Database.MySQL.ClusterQueryFailed(err.message + '\ntransaction: ' + clause);
 				if (!!callback) callback(err, results, fields);
 				if (!!err) {
 					rej(err);
