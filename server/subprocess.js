@@ -42,7 +42,6 @@ const doTask = async (tid, target, data) => {
 			result = await resp.responsor(data.param, data.query, data.url, data.data, data.method, data.source, data.ip, data.port);
 			if (ResponsorManager.postprocessor.length > 0) {
 				for (let pro of ResponsorManager.postprocessor) {
-					Logger.log(typeof pro, pro);
 					let r = await pro(result, data.param, data.query, data.url, data.data, data.method, data.source, data.ip, data.port);
 					if (!!r) break;
 				}

@@ -91,7 +91,7 @@ const forkChildren = (cfg, callback) => {
 				let task = PendingTasks.shift();
 				worker.launchTask(task);
 			}
-			Logger.log('Slaver Ready: ' + worker.pid);
+			Logger.info('Slaver Ready: ' + worker.pid);
 			callback();
 		}
 		else if (msg.event === 'jobdone') {
@@ -137,7 +137,7 @@ const forkChildren = (cfg, callback) => {
 		}
 	});
 	worker.on('exit', code => {
-		Logger.log('Slaver Died: ' + worker.pid);
+		Logger.info('Slaver Died: ' + worker.pid);
 		Slavers.remove(worker);
 
 		var dying = worker.state === SubProcessState.DYING;
@@ -435,11 +435,17 @@ const launchResponsor = (responsor, param, query, url, data, method, source, ip,
 
 	var result;
 	if (url.substr(0, 1) !== '/') url = '/' + url;
+	var sender = (!!param.originSource || !!param.originHost + !!param.originPort)
+		? (param.originSource + '/' + param.originHost + '/' + param.originPort)
+		: (source + '/' + ip + '/' + port), sendInfo = method + ':' + url;
+
 	if (url.indexOf('/galanet/') === 0) {
 		if (Galanet.check(ip)) {
+			Logger.log("Galanet请求(" + sender + "): " + sendInfo + '; Q: ' + JSON.stringify(query) + '; P: ' + JSON.stringify(param));
 			result = await launchLocalResponsor(responsor, param, query, url, data, method, source, ip, port);
 		}
 		else {
+			Logger.error("未授权的Galanet请求(" + sender + "): " + sendInfo);
 			let err = new Errors.GalanetError.Unauthorized();
 			result = {
 				ok: false,
@@ -450,14 +456,17 @@ const launchResponsor = (responsor, param, query, url, data, method, source, ip,
 	}
 	else {
 		if (isDelegator) { // 如果本节点是纯代理节点，则转发给集群友机
+			Logger.log("网关转发请求(" + sender + "): " + sendInfo + '; Q: ' + JSON.stringify(query) + '; P: ' + JSON.stringify(param));
 			result = await Galanet.launch(responsor, param, query, url, data, method, source, ip, port);
 		}
 		else if (!!param && param.isGalanet) { // 如果声称是集群请求
 			if (Galanet.check(ip)) { // 如果是集群中友机的请求，则本地处理
 				if (Galanet.checkService(url)) { // 如果是本地注册的请求，则本地处理
+					Logger.log("Galanet请求(" + sender + "): " + sendInfo + '; Q: ' + JSON.stringify(query) + '; P: ' + JSON.stringify(param));
 					result = await launchLocalResponsor(responsor, param, query, url, data, method, source, ip, port);
 				}
 				else { // 如果不是本地注册的请求，则不做处理
+					Logger.error("不可用Galanet请求(" + sender + "): " + sendInfo);
 					let err = new Errors.GalanetError.CannotService(url + '不是可服务请求类型');
 					result = {
 						ok: false,
@@ -467,6 +476,7 @@ const launchResponsor = (responsor, param, query, url, data, method, source, ip,
 				}
 			}
 			else { // 不是集群中友机请求，则不作处理
+				Logger.error("集群外Galanet请求(" + sender + "): " + sendInfo);
 				let err = new Errors.GalanetError.NotFriendNode(ip + '不是集群友机');
 				result = {
 					ok: false,
@@ -476,6 +486,7 @@ const launchResponsor = (responsor, param, query, url, data, method, source, ip,
 			}
 		}
 		else { // 如果没声称是集群请求
+			Logger.log("收到请求(" + sender + "): " + sendInfo);
 			if (!Galanet.isInGroup) {
 				result = await launchLocalResponsor(responsor, param, query, url, data, method, source, ip, port);
 			}

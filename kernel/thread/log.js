@@ -17,7 +17,8 @@ require('../log');
 const Logger = new (_("Utils.Logger"))('ThreadLogger');
 const history = [];
 var isReady = false;
-var timer = setInterval(async () => {
+
+const timer = setInterval(async () => {
 	if (!isReady) return;
 	if (history.length === 0) return;
 

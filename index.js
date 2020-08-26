@@ -59,24 +59,28 @@ const createServer = (config, options) => {
 		if (Number.is(param.process) || param.process === 'auto') cfg.process = param.process;
 		if (Number.is(param.concurrence)) cfg.concurrence = param.concurrence;
 		if (Boolean.is(param.console) || String.is(param.console)) cfg.console = param.console;
-		if (Number.is(param.logLevel)) cfg.logLevel = param.logLevel;
-		else cfg.logLevel = 0;
-		if (String.is(param.logFile)) cfg.logFile = param.logFile;
+		cfg.log = cfg.log || {};
+		if (Number.is(param.logLevel)) cfg.log.level = param.logLevel;
+		else cfg.log.level = 0;
+		if (String.is(param.logFile)) cfg.log.output = param.logFile;
+		if (Boolean.is(param.silence)) cfg.log.silence = param.silence;
+		else if (!Boolean.is(cfg.log.silence)) cfg.log.silence = false;
 
 		if (hooks.start.length > 0) hooks.start.forEach(cb => cb(param));
 		delete hooks.start;
 
 		// 设置日志相关
-		var logger = _("Utils.Logger");
-		logger.LogLimit = cfg.logLevel;
-		logger.Silence = Boolean.is(param.silence) ? param.silence : false;
+		var Logger = _("Utils.Logger");
+		var logger = new Logger('Entrance');
+		Logger.LogLimit = cfg.log.level;
+		Logger.Silence = cfg.log.silence;
 
 		// Load Responsors
 		if (!cfg.api) {
 			global.processStat = global.ProcessStat.DEAD;
 			let err = new Errors.ConfigError.NoResponsor();
-			console.error(err.message);
-			console.error(setStyle(config.welcome.failed, 'bold red'));
+			logger.error(err.message);
+			logger.error(config.welcome.failed);
 			process.exit();
 			return;
 		}
@@ -97,19 +101,19 @@ const createServer = (config, options) => {
 			if (count !== 0) return;
 			if (success === 0) {
 				global.processStat = global.ProcessStat.DEAD;
-				console.error(setStyle(config.welcome.failed, 'bold red'));
+				logger.error(config.welcome.failed);
 				process.exit();
 				return;
 			}
+			Logger.setOutput(cfg.log.output);
 			ResponsorManager.setConfig(cfg, async () => {
 				var list = hooks.ready.copy();
 				delete hooks.ready;
 				await Promise.all(list.map(async cb => await cb(param, cfg)));
 
 				global.processStat = global.ProcessStat.READY;
+				logger.log(config.welcome.success);
 			});
-			logger.setOutput(cfg.logFile);
-			console.log(setStyle(config.welcome.success, 'bold green'));
 		};
 
 		// 启动 Web 服务器
@@ -117,7 +121,7 @@ const createServer = (config, options) => {
 		tasks.web = false;
 		webServer(cfg, (error) => {
 			if (error instanceof Error) {
-				console.error(setStyle('Launch Web-Server Failed.', 'bold red'));
+				logger.error('Launch Web-Server Failed.');
 				cb('web', false);
 			}
 			else {
@@ -130,7 +134,7 @@ const createServer = (config, options) => {
 		tasks.socket = false;
 		socketServer(cfg, (error) => {
 			if (error instanceof Error) {
-				console.error(setStyle('Launch Socket-Server Failed.', 'bold red'));
+				logger.error('Launch Socket-Server Failed.');
 				cb('socket', false);
 			}
 			else {
@@ -145,7 +149,7 @@ const createServer = (config, options) => {
 			if (!String.is(ipc)) ipc = DefailtIPC;
 			consoleServer.create(clp, ipc, err => {
 				if (err instanceof Error) {
-					console.error(err.message);
+					logger.error(err.message);
 					cb('console', false);
 				}
 				else {
