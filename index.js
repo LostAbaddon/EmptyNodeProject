@@ -53,9 +53,11 @@ const createServer = (config, options) => {
 		if (Number.is(param.port)) cfg.port.http = param.port;
 		if (Number.is(param.secure)) cfg.port.https = param.secure;
 		if (Number.is(param.tcp)) cfg.port.tcp = param.tcp;
+		if (String.is(param.pipe)) cfg.port.pipe = param.pipe;
 		if (Number.is(param.udp4)) cfg.port.udp4 = param.udp4;
 		if (Number.is(param.udp6)) cfg.port.udp6 = param.udp6;
 		if (Number.is(param.process) || param.process === 'auto') cfg.process = param.process;
+		if (Number.is(param.concurrence)) cfg.concurrence = param.concurrence;
 		if (Boolean.is(param.console) || String.is(param.console)) cfg.console = param.console;
 		if (Number.is(param.logLevel)) cfg.logLevel = param.logLevel;
 		else cfg.logLevel = 0;
@@ -102,7 +104,7 @@ const createServer = (config, options) => {
 			ResponsorManager.setConfig(cfg, async () => {
 				var list = hooks.ready.copy();
 				delete hooks.ready;
-				await Promise.all(list.map(async cb => await cb()));
+				await Promise.all(list.map(async cb => await cb(param, cfg)));
 
 				global.processStat = global.ProcessStat.READY;
 			});
@@ -167,10 +169,11 @@ const createConsole = (config) => {
 	}).describe(setStyle(config.name + " v" + config.version, "bold"))
 	.addOption('--ipc <ipc> >> 指定通讯通道')
 	.add('stat >> 查看状态')
-	.setParam('<item> >> 查看项')
+	.setParam('[item] >> 查看项')
 	.addOption('--list -l >> 查看可用参数')
 	.add('local >> 本地操作')
-	.setParam('<command> >> 操作项')
+	.setParam('[...command] >> 操作项')
+	.addOption('--list -l >> 查看可用参数')
 	.add('network >> Galanet 集群操作')
 	.addOption('--add <node> >> 添加集群友机节点')
 	.addOption('--remove <node> >> 移除集群友机节点')

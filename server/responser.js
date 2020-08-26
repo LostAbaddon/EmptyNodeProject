@@ -17,6 +17,7 @@ global.ResponsorList = [];
 
 const Config = {
 	process: 1,
+	concurrence: 0,
 	services: [],
 	preprocessor: [],
 	postprocessor: [],
@@ -95,8 +96,10 @@ const forkChildren = (cfg, callback) => {
 		}
 		else if (msg.event === 'jobdone') {
 			if (worker.state === SubProcessState.DIED) return;
+
 			let info = worker.taskQueue[msg.id];
 			if (!info) return;
+
 			let used = now() - info.stamp;
 			worker.taskDone ++;
 			worker.taskTimespent += used;
@@ -109,10 +112,12 @@ const forkChildren = (cfg, callback) => {
 				worker.state = SubProcessState.WAITING;
 			}
 			Logger.log('Slaver-' + worker.pid + ' Job DONE! (' + worker.taskPower + ' | ' + worker.taskCount + ' / ' + worker.taskDone + ' / ' + worker.taskTimespent + ')');
-			if (PendingTasks.length > 0) {
+
+			if (PendingTasks.length > 0 && worker.taskCount - worker.taskDone <= Config.concurrence) {
 				let task = PendingTasks.shift();
 				worker.launchTask(task);
 			}
+
 			info.callback(msg.result);
 			if (worker.state === SubProcessState.DYING) {
 				worker.send({ event: 'suicide' });
@@ -225,6 +230,7 @@ const setConfig = (cfg, callback) => {
 	if (Array.is(cfg.api.services)) Config.services.push(...cfg.api.services);
 	else if (String.is(cfg.api.services)) Config.services.push(cfg.api.services);
 	Config.options = cfg;
+	Config.concurrence = cfg.concurrence;
 
 	loadPrePostWidget(cfg);
 
@@ -253,6 +259,13 @@ const setConfig = (cfg, callback) => {
 	}
 
 	Galanet.setConfig(cfg, callback);
+};
+const setConcurrence = count => {
+	if (count >= 0) {
+		Config.concurrence = count;
+		return true;
+	}
+	return false;
 };
 const loadPrePostWidget = cfg => {
 	if (!!cfg.api?.preprocessor) {
@@ -464,7 +477,7 @@ const launchResponsor = (responsor, param, query, url, data, method, source, ip,
 	res(result);
 });
 const launchLocalResponsor = (responsor, param, query, url, data, method, source, ip, port) => new Promise(async res => {
-	if (Config.process < 1) {
+	if (!isMultiProcess) {
 		let result;
 		TaskInfo.total ++;
 		let time = now();
@@ -518,7 +531,11 @@ const launchLocalResponsor = (responsor, param, query, url, data, method, source
 	// 选进程
 	var worker = Slavers.filter(slaver => {
 		if (slaver.state === SubProcessState.WAITING) return true;
-		if (slaver.state === SubProcessState.WORKING) return true;
+		if (slaver.state === SubProcessState.WORKING) {
+			if (Config.concurrence < 1) return true; // 如果共线数小于1，表示不作限制
+			if (slaver.taskCount - slaver.taskDone > Config.concurrence) return false;
+			return true;
+		}
 		return false;
 	});
 	if (worker.length === 0) {
@@ -559,8 +576,10 @@ const getUsage = () => {
 	result.isDelegator = global.isDelegator;
 	result.isInGroup = Galanet.isInGroup;
 	result.processCount = Config.process < 1 ? 1 : Config.process;
+	result.concurrence = Config.concurrence;
 	result.pending = PendingTasks.length;
 	result.workers = [];
+	result.connections = Config.options.port;
 	if (isMultiProcess) {
 		Slavers.forEach(worker => {
 			var info = {
@@ -595,6 +614,7 @@ module.exports = {
 	match: matchResponsor,
 	launch: launchResponsor,
 	launchLocally: launchLocalResponsor,
+	setConcurrence,
 	extinct: extinctSlavers,
 	getUsage,
 	refresh: restartWorkers,

@@ -21,6 +21,11 @@ process.on('console::local::refresh', async (unuse, event, callback) => {
 	time = Date.now() - time;
 	callback(Responsor.processCount + ' 个工作进程已被更新，用时 ' + time + ' ms');
 });
+// 设置并发数
+process.on('console::local::set::concurrence', async (data, event, callback) => {
+	var ok = Responsor.setConcurrence(data);
+	callback('设置并发数' + (ok ? '成功' : '失败'));
+});
 // 增加节点
 process.on('console::network::addNode', async (node, event, callback) => {
 	callback(...(await Galanet.addNode(node)));
