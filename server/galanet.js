@@ -196,7 +196,7 @@ const launchTask = (responsor, param, query, url, data, method, source, ip, port
 
 	var task = Pending.shift();
 	if (!!task) {
-		Logger.log("请求" + sender + '/' + sendInfo + '被转发至' + resp.name + '。 Q: ' + JSON.stringify(query) + '; P: ' + JSON.stringify(param));
+		Logger.log("池中请求" + sender + '/' + sendInfo + '被转发至' + resp.name + '。 Q: ' + JSON.stringify(query) + '; P: ' + JSON.stringify(param));
 		launchTask(...task);
 	}
 });
