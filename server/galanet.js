@@ -85,6 +85,9 @@ const checkService = url => {
 	return Config.services.includes(url);
 };
 const launchTask = (responsor, param, query, url, data, method, source, ip, port, callback) => new Promise(async res => {
+	var sender = (!!param.originSource || !!param.originHost + !!param.originPort)
+		? (param.originSource + '/' + param.originHost + '/' + param.originPort)
+		: (source + '/' + ip + '/' + port), sendInfo = method + ':' + url;
 	var resps = [];
 	// 筛选符合注册服务要求的节点
 	Config.nodes.forEach(node => {
@@ -117,6 +120,7 @@ const launchTask = (responsor, param, query, url, data, method, source, ip, port
 				code: err.code,
 				message: err.message
 			};
+			Logger.error('网关无可用节点响应请求！');
 			if (!!callback) callback(result);
 			return res(result);
 		}
@@ -132,6 +136,8 @@ const launchTask = (responsor, param, query, url, data, method, source, ip, port
 			if (!!callback) callback(result);
 			res(result);
 		};
+
+		Logger.log("请求" + sender + '/' + sendInfo + '入池等待。 Q: ' + JSON.stringify(query) + '; P: ' + JSON.stringify(param));
 		Pending.push([responsor, param, query, url, data, method, source, ip, port, cb]);
 		return;
 	}
@@ -145,6 +151,8 @@ const launchTask = (responsor, param, query, url, data, method, source, ip, port
 		result = await ResponsorManager.launchLocally(responsor, param, query, url, data, method, source, ip, port);
 	}
 	else { // 发送给群组节点处理
+		Logger.log("请求" + sender + '/' + sendInfo + '被转发至' + resp.name + '。 Q: ' + JSON.stringify(query) + '; P: ' + JSON.stringify(param));
+
 		param = param || {};
 		param.isGalanet = true;
 		param.originHost = ip;
@@ -187,7 +195,10 @@ const launchTask = (responsor, param, query, url, data, method, source, ip, port
 	res(result);
 
 	var task = Pending.shift();
-	if (!!task) launchTask(...task);
+	if (!!task) {
+		Logger.log("池中请求" + sender + '/' + sendInfo + '被转发至' + resp.name + '。 Q: ' + JSON.stringify(query) + '; P: ' + JSON.stringify(param));
+		launchTask(...task);
+	}
 });
 const getUsage = () => {
 	var result = {};
@@ -369,7 +380,7 @@ const connectNode = node => new Promise(res => {
 		connect = connectUDP;
 	}
 	else {
-		Logger.log(node);
+		Logger.warn('错误的节点协议: ', node);
 		return res(new Errors.GalanetError.WrongProtocol());
 	}
 	connect(node, (data, err) => {
@@ -380,7 +391,7 @@ const connectNode = node => new Promise(res => {
 		}
 		node.available = true;
 		node.services = [...data];
-		Logger.log('连接' + node.name + '成功！');
+		Logger.info('连接' + node.name + '成功！');
 		res();
 	});
 });

@@ -39,7 +39,7 @@ class LogRecord {
 		});
 		this.data = datas;
 	}
-	getDateTime () {
+	getDateTime (short=true) {
 		var date = this.stamp;
 		var Y = date.getYear() + 1900;
 		var M = date.getMonth() + 1;
@@ -57,10 +57,15 @@ class LogRecord {
 		var s = date.getSeconds();
 		s = s + '';
 		s = s.padStart(2, '0');
-		return Y + '/' + M + '/' + D + ' ' + h + ':' + m + ':' + s;
+		if (short) return Y + '/' + M + '/' + D + ' ' + h + ':' + m + ':' + s;
+
+		var ms = date.getMilliseconds();
+		ms = ms + '';
+		ms = ms.padStart(3, '0');
+		return Y + '/' + M + '/' + D + ' ' + h + ':' + m + ':' + s + '.' + ms;
 	}
 	toPlain () {
-		var head = '[' + this.title + ' ' + LogRecord.levelName[this.level] + ' (' + this.getDateTime() + ')]';
+		var head = '[' + this.title + ' ' + LogRecord.levelName[this.level] + ' (' + this.getDateTime(false) + ')]';
 		var body = this.data.join(' ');
 		return head + ' ' + body;
 	}

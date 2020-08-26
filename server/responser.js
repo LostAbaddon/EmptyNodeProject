@@ -17,6 +17,7 @@ global.ResponsorList = [];
 
 const Config = {
 	process: 1,
+	concurrence: 0,
 	services: [],
 	preprocessor: [],
 	postprocessor: [],
@@ -90,13 +91,15 @@ const forkChildren = (cfg, callback) => {
 				let task = PendingTasks.shift();
 				worker.launchTask(task);
 			}
-			Logger.log('Slaver Ready: ' + worker.pid);
+			Logger.info('Slaver Ready: ' + worker.pid);
 			callback();
 		}
 		else if (msg.event === 'jobdone') {
 			if (worker.state === SubProcessState.DIED) return;
+
 			let info = worker.taskQueue[msg.id];
 			if (!info) return;
+
 			let used = now() - info.stamp;
 			worker.taskDone ++;
 			worker.taskTimespent += used;
@@ -109,10 +112,12 @@ const forkChildren = (cfg, callback) => {
 				worker.state = SubProcessState.WAITING;
 			}
 			Logger.log('Slaver-' + worker.pid + ' Job DONE! (' + worker.taskPower + ' | ' + worker.taskCount + ' / ' + worker.taskDone + ' / ' + worker.taskTimespent + ')');
-			if (PendingTasks.length > 0) {
+
+			if (PendingTasks.length > 0 && worker.taskCount - worker.taskDone <= Config.concurrence) {
 				let task = PendingTasks.shift();
 				worker.launchTask(task);
 			}
+
 			info.callback(msg.result);
 			if (worker.state === SubProcessState.DYING) {
 				worker.send({ event: 'suicide' });
@@ -132,7 +137,7 @@ const forkChildren = (cfg, callback) => {
 		}
 	});
 	worker.on('exit', code => {
-		Logger.log('Slaver Died: ' + worker.pid);
+		Logger.info('Slaver Died: ' + worker.pid);
 		Slavers.remove(worker);
 
 		var dying = worker.state === SubProcessState.DYING;
@@ -188,16 +193,6 @@ const launchWorkers = (cfg, callback) => new Promise(res => {
 		});
 	}
 });
-const restartWorkers = async () => {
-	if (!isMultiProcess) return;
-	processStat = ProcessStat.INIT;
-	var workers = Slavers.map(w => w);
-	Slavers.splice(0, Slavers.length);
-	workers = workers.map(worker => worker.dying());
-	workers.push(launchWorkers(Config.options));
-	await Promise.all(workers);
-	processStat = ProcessStat.READY;
-};
 const loadProcessor = (list, modules) => {
 	modules.forEach(filepath => {
 		filepath = Path.join(process.cwd(), filepath);
@@ -225,6 +220,7 @@ const setConfig = (cfg, callback) => {
 	if (Array.is(cfg.api.services)) Config.services.push(...cfg.api.services);
 	else if (String.is(cfg.api.services)) Config.services.push(cfg.api.services);
 	Config.options = cfg;
+	Config.concurrence = cfg.concurrence;
 
 	loadPrePostWidget(cfg);
 
@@ -254,6 +250,32 @@ const setConfig = (cfg, callback) => {
 
 	Galanet.setConfig(cfg, callback);
 };
+const setConcurrence = count => {
+	if (count >= 0) {
+		Config.concurrence = count;
+		return true;
+	}
+	return false;
+};
+const setProcessCount = count => {
+	if (count >= 0) {
+		Config.process = count;
+		Config.options.process = count;
+		return true;
+	}
+	return false;
+};
+const restartWorkers = async () => {
+	if (!isMultiProcess) return;
+	processStat = ProcessStat.INIT;
+	var workers = Slavers.map(w => w);
+	Slavers.splice(0, Slavers.length);
+	workers = workers.map(worker => worker.dying());
+	workers.push(launchWorkers(Config.options));
+	await Promise.all(workers);
+	processStat = ProcessStat.READY;
+};
+
 const loadPrePostWidget = cfg => {
 	if (!!cfg.api?.preprocessor) {
 		loadProcessor(Config.preprocessor, cfg.api.preprocessor);
@@ -370,6 +392,7 @@ const loadResponsors = async (path, monitor=true) => {
 
 	list.forEach(filepath => loadResponseFile(path, filepath));
 };
+
 const matchResponsor = (url, method, source) => {
 	var res = ResponsorMap[url], query = {}, didMatch = false;
 	if (!!res) {
@@ -412,11 +435,17 @@ const launchResponsor = (responsor, param, query, url, data, method, source, ip,
 
 	var result;
 	if (url.substr(0, 1) !== '/') url = '/' + url;
+	var sender = (!!param.originSource || !!param.originHost + !!param.originPort)
+		? (param.originSource + '/' + param.originHost + '/' + param.originPort)
+		: (source + '/' + ip + '/' + port), sendInfo = method + ':' + url;
+
 	if (url.indexOf('/galanet/') === 0) {
 		if (Galanet.check(ip)) {
+			Logger.log("Galanet请求(" + sender + "): " + sendInfo + '; Q: ' + JSON.stringify(query) + '; P: ' + JSON.stringify(param));
 			result = await launchLocalResponsor(responsor, param, query, url, data, method, source, ip, port);
 		}
 		else {
+			Logger.error("未授权的Galanet请求(" + sender + "): " + sendInfo);
 			let err = new Errors.GalanetError.Unauthorized();
 			result = {
 				ok: false,
@@ -427,14 +456,17 @@ const launchResponsor = (responsor, param, query, url, data, method, source, ip,
 	}
 	else {
 		if (isDelegator) { // 如果本节点是纯代理节点，则转发给集群友机
+			Logger.log("网关转发请求(" + sender + "): " + sendInfo + '; Q: ' + JSON.stringify(query) + '; P: ' + JSON.stringify(param));
 			result = await Galanet.launch(responsor, param, query, url, data, method, source, ip, port);
 		}
 		else if (!!param && param.isGalanet) { // 如果声称是集群请求
 			if (Galanet.check(ip)) { // 如果是集群中友机的请求，则本地处理
 				if (Galanet.checkService(url)) { // 如果是本地注册的请求，则本地处理
+					Logger.log("Galanet请求(" + sender + "): " + sendInfo + '; Q: ' + JSON.stringify(query) + '; P: ' + JSON.stringify(param));
 					result = await launchLocalResponsor(responsor, param, query, url, data, method, source, ip, port);
 				}
 				else { // 如果不是本地注册的请求，则不做处理
+					Logger.error("不可用Galanet请求(" + sender + "): " + sendInfo);
 					let err = new Errors.GalanetError.CannotService(url + '不是可服务请求类型');
 					result = {
 						ok: false,
@@ -444,6 +476,7 @@ const launchResponsor = (responsor, param, query, url, data, method, source, ip,
 				}
 			}
 			else { // 不是集群中友机请求，则不作处理
+				Logger.error("集群外Galanet请求(" + sender + "): " + sendInfo);
 				let err = new Errors.GalanetError.NotFriendNode(ip + '不是集群友机');
 				result = {
 					ok: false,
@@ -453,6 +486,7 @@ const launchResponsor = (responsor, param, query, url, data, method, source, ip,
 			}
 		}
 		else { // 如果没声称是集群请求
+			Logger.log("收到请求(" + sender + "): " + sendInfo);
 			if (!Galanet.isInGroup) {
 				result = await launchLocalResponsor(responsor, param, query, url, data, method, source, ip, port);
 			}
@@ -464,7 +498,7 @@ const launchResponsor = (responsor, param, query, url, data, method, source, ip,
 	res(result);
 });
 const launchLocalResponsor = (responsor, param, query, url, data, method, source, ip, port) => new Promise(async res => {
-	if (Config.process < 1) {
+	if (!isMultiProcess) {
 		let result;
 		TaskInfo.total ++;
 		let time = now();
@@ -518,7 +552,11 @@ const launchLocalResponsor = (responsor, param, query, url, data, method, source
 	// 选进程
 	var worker = Slavers.filter(slaver => {
 		if (slaver.state === SubProcessState.WAITING) return true;
-		if (slaver.state === SubProcessState.WORKING) return true;
+		if (slaver.state === SubProcessState.WORKING) {
+			if (Config.concurrence < 1) return true; // 如果共线数小于1，表示不作限制
+			if (slaver.taskCount - slaver.taskDone > Config.concurrence) return false;
+			return true;
+		}
 		return false;
 	});
 	if (worker.length === 0) {
@@ -528,6 +566,7 @@ const launchLocalResponsor = (responsor, param, query, url, data, method, source
 	worker = worker[0];
 	worker.launchTask(task);
 });
+
 const extinctSlavers = () => {
 	if (isSlaver) return;
 
@@ -554,13 +593,16 @@ const destroyMonde = () => {
 	}
 	process.exit();
 };
+
 const getUsage = () => {
 	var result = {};
 	result.isDelegator = global.isDelegator;
 	result.isInGroup = Galanet.isInGroup;
 	result.processCount = Config.process < 1 ? 1 : Config.process;
+	result.concurrence = Config.concurrence;
 	result.pending = PendingTasks.length;
 	result.workers = [];
+	result.connections = Config.options.port;
 	if (isMultiProcess) {
 		Slavers.forEach(worker => {
 			var info = {
@@ -595,6 +637,8 @@ module.exports = {
 	match: matchResponsor,
 	launch: launchResponsor,
 	launchLocally: launchLocalResponsor,
+	setConcurrence,
+	setProcessCount,
 	extinct: extinctSlavers,
 	getUsage,
 	refresh: restartWorkers,

@@ -18,6 +18,8 @@
 	-	支持非 API 模块文件的自动加载与热更新（以“_”开头的文件不会作为 WebAPI 接口文件加载，而作为普通 JS 模块加载）
 2.	支持 Http、Https、WebSocket、TCP、UDP、Linuxsock/pipe 连接
 3.	支持多进程响应，并根据各进程的工作情况自动调配任务
+	-	可动态调整业务进程数（以单进程模式启动的不行，设置命令：console local set-process x），也可通过控制台重启所有业务进程（重启命令：console local refresh）
+	-	可动态设置每个业务进程的并发请求数（设置命令：console local set-concurrence x）
 4.	支持简单的多节点集群响应，可根据集群响应速度自动调配任务（Galanet 模块）
 	-	提供服务的节点才能成为集群友机，从而被其它友机服务
 	-	可设置响应的服务类型（根路径为类型名）
@@ -25,9 +27,9 @@
 	-	支持纯网关代理模式
 	-	支持等待任务池
 5.	支持控制台响应
-	-	查看本地各进程、集群中各节点的负载情况
-	-	增加、移除 Galanet 节点
-	-	关闭当前节点或全网
+	-	查看本地各进程、集群中各节点的负载情况（查看命令：console stat usage、console stat cluster）
+	-	增加、移除 Galanet 节点（增删命令：console network --add xxx、console network --remove xxx）
+	-	关闭当前节点或全网（命令：console shutdown、console shutdown --all）
 6.	支持接口响应的预处理与后处理，并支持热更新
 7.	日志模块
 	-	多进程统一日志显示
@@ -99,7 +101,7 @@ pipe/socket —————┘　　　　　　　　　　　 　　　　　�
 	基于 Node-MySQL 库，将部分库中接口异步化。
 -	Redis 模块
 	基于 Node-Redis 库，将部分库中接口异步化。
--	简单缓存关联表
+-	简单缓存关联表（SCT）
 	使用 Redis 对 MySQL 做缓存，并自动管理过期时间。
 	+	大周期（longExpire）：Redis 自动过期的时长
 	+	小周期（shortExpire）：读取数据时的被模块自动过期的时长
@@ -107,11 +109,13 @@ pipe/socket —————┘　　　　　　　　　　　 　　　　　�
 
 ## 计划
 
--	主分支：API 端口的访问闸限流机制，避免并发过高
--	主分支：使用序列化手段做进程间通讯即节点间通讯
+-	数据库分支：增加必要日志记录 (working)
+-	数据库分支：完善错误信息 (working)
+-	数据库分支：增加 SCT 的初始化 (working)
 -	主分支：增加 Ising 协议，用于分布式共识
--	主分支：多节点数据用socket中转而非读取后写出到端
 -	主分支：支持根据任务类型进行多节点任务调配，而非统一任务调配
+-	主分支：使用序列化手段做进程间通讯即节点间通讯
+-	主分支：多节点数据用socket中转而非读取后写出到端
 
 ## 代码仓库
 

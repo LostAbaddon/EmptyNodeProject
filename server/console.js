@@ -4,7 +4,8 @@ const Logger = new (_("Utils.Logger"))('ConsoleManager');
 
 const ConsoleEventTag = 'console::';
 const ConsoleHelp = {
-	stat: 'usage\t\t\t查看各子进程负载情况\ncluster\t\t\t查看 Galanet 中友节点'
+	stat: 'usage\t\t\t查看各子进程负载情况\ncluster\t\t\t查看 Galanet 中友节点',
+	local: 'refresh\t\t\t重启业务子进程\nset-process\t\t设置业务进程数\nset-concurrence\t\t设置业务进程请求并发数',
 };
 
 const sockets = [];
@@ -129,11 +130,29 @@ const deal = async (param, config) => {
 	}
 	if (!!cmds.local && !!cmds.local.command) {
 		cmdList.local = cmds.local.command;
-		req.push({
-			name: 'local',
-			target: cmds.local,
-			event: 'local::' + cmds.local.command
-		});
+		if (cmds.local.command.includes('refresh')) {
+			req.push({
+				name: 'local',
+				target: cmds.local,
+				event: 'local::refresh'
+			});
+		}
+		else if (cmds.local.command.includes('set-concurrence')) {
+			req.push({
+				name: 'local',
+				target: cmds.local,
+				event: 'local::set::concurrence',
+				data: cmds.local.command[1]
+			});
+		}
+		else if (cmds.local.command.includes('set-process')) {
+			req.push({
+				name: 'local',
+				target: cmds.local,
+				event: 'local::set::subprocess',
+				data: cmds.local.command[1]
+			});
+		}
 	}
 	if (!!cmds.network) {
 		let action = null;
@@ -222,9 +241,20 @@ const deal = async (param, config) => {
 const showStatUsage = data => {
 	if (data.ok) {
 		data = data.data;
+		if (!!data.connections) {
+			console.log('接入端口：');
+			if (!!data.connections.http) console.log('\t\t Http:\t' + data.connections.http);
+			if (!!data.connections.https) console.log('\t\tHttps:\t' + data.connections.https);
+			if (!!data.connections.tcp) console.log('\t\t  TCP:\t' + data.connections.tcp);
+			if (!!data.connections.udp4) console.log('\t\t UDP4:\t' + data.connections.udp4);
+			if (!!data.connections.udp6) console.log('\t\t UDP6:\t' + data.connections.udp6);
+			if (!!data.connections.pipe) console.log('       PipeSocket路径:\t' + data.connections.pipe);
+			console.log('--------------------------------------------------');
+		}
 		console.log('　　　代理网关：\t' + (data.isDelegator ? '是' : '否'));
 		console.log('　　　集群节点：\t' + (data.isInGroup ? '是' : '否'));
 		console.log('　　并行进程数：\t' + data.processCount);
+		console.log('　　并发任务数：\t' + data.concurrence);
 		console.log('等待中的任务数：\t' + data.pending);
 		data.workers.forEach((worker, i) => {
 			let list = [];
