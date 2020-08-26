@@ -42,6 +42,8 @@ const prepareRedis = redis => {
 	});
 };
 const newRedis = cfg => new Promise((res) => {
+	if (!cfg) return res(null);
+
 	cfg.id = cfg.id || newLongID();
 	var id = cfg.id;
 	var redis = Servers.get(cfg.id);

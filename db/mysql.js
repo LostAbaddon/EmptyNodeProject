@@ -32,6 +32,8 @@ const afterQuerySuccess = (sql, action, clause, result) => {
 };
 
 const newSQL = cfg => {
+	if (!cfg) return null;
+
 	var sql;
 	if (Array.is(cfg)) sql = newCluster(cfg);
 	else if (Number.is(cfg.connectionLimit)) sql = newPool(cfg);
