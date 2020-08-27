@@ -106,14 +106,16 @@ const createServer = (config, options) => {
 				process.exit();
 				return;
 			}
-			Logger.setOutput(cfg.log.output);
 			ResponsorManager.setConfig(cfg, async () => {
+				Logger.setOutput(cfg.log.output);
+				var scts = {};
 				if (!isMultiProcess && !isDelegator) {
 					// 如果在多线程模式，则数据库由各子进程来控制，主进程不用自己控制
 					await Promise.all([
 						_("Utils.Redis.create")(cfg.redis),
 						_("Utils.MySQL.create")(cfg.mysql)
 					]);
+					console.log(cfg);
 				}
 
 				var list = hooks.ready.copy();

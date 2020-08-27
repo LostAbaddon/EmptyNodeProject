@@ -23,6 +23,7 @@ const setConfig = async cfg => {
 		_("Utils.Redis.create")(cfg.redis),
 		_("Utils.MySQL.create")(cfg.mysql)
 	]);
+	Logger.info(cfg);
 
 	process.send({ event: 'ready' });
 };
