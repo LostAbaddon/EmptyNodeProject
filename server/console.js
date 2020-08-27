@@ -4,7 +4,7 @@ const Logger = new (_("Utils.Logger"))('ConsoleManager');
 
 const ConsoleEventTag = 'console::';
 const ConsoleHelp = {
-	stat: 'usage\t\t\t查看各子进程负载情况\ncluster\t\t\t查看 Galanet 中友节点',
+	stat: 'usage\t\t\t查看各子进程负载情况\ncluster\t\t\t查看 Galanet 中友节点\nall\t\t\t查看全部信息',
 	local: 'refresh\t\t\t重启业务子进程\nset-process\t\t设置业务进程数\nset-concurrence\t\t设置业务进程请求并发数',
 };
 
@@ -42,8 +42,7 @@ const createServer = (host, ipc, callback) => {
 		var result = {}, count = 0, tasks = {};
 		var events = process.eventNames();
 		for (let cmd of msg) {
-			let eventName = ConsoleEventTag + cmd.event;
-			if (!events.includes(eventName)) {
+			if (!events.includes(ConsoleEventTag + cmd.event)) {
 				result[cmd.name] = {
 					ok: false,
 					code: 404,
@@ -54,6 +53,8 @@ const createServer = (host, ipc, callback) => {
 
 			tasks[cmd.name] = false;
 			count ++;
+		}
+		for (let cmd of msg) {
 			let eventMsg = {
 				event: cmd.name,
 				pipe: socket,
@@ -121,12 +122,27 @@ const deal = async (param, config) => {
 	});
 
 	if (!!cmds.stat && !!cmds.stat.item) {
-		cmdList.stat = cmds.stat.item;
-		req.push({
-			name: 'stat',
-			target: cmds.stat.item,
-			event: 'stat::' + cmds.stat.item,
-		});
+		if (cmds.stat.item === 'all') {
+			cmdList.stat = 'all';
+			req.push({
+				name: 'stat:usage',
+				target: 'all:usage',
+				event: 'stat::usage',
+			});
+			req.push({
+				name: 'stat:cluster',
+				target: 'all:cluster',
+				event: 'stat::cluster',
+			});
+		}
+		else {
+			cmdList.stat = cmds.stat.item;
+			req.push({
+				name: 'stat',
+				target: cmds.stat.item,
+				event: 'stat::' + cmds.stat.item,
+			});
+		}
 	}
 	if (!!cmds.local && !!cmds.local.command) {
 		cmdList.local = cmds.local.command;
@@ -188,11 +204,22 @@ const deal = async (param, config) => {
 		console.error('空回复');
 	}
 	else {
+		let result = {};
 		for (let item in reply) {
 			let msg = reply[item];
 			if (item === 'stat') {
 				if (cmdList[item] === 'usage') showStatUsage(msg);
 				else if (cmdList[item] === 'cluster') showStatNetwork(msg);
+			}
+			else if (item === 'stat:usage') {
+				result.stat = result.stat || {};
+				result.stat.usage = msg;
+				if (!!result.stat.usage && result.stat.cluster) showStatAll(result.stat);
+			}
+			else if (item === 'stat:cluster') {
+				result.stat = result.stat || {};
+				result.stat.cluster = msg;
+				if (!!result.stat.usage && result.stat.cluster) showStatAll(result.stat);
 			}
 			else if (item === 'local') {
 				if (msg.ok) {
@@ -300,6 +327,11 @@ const showStatNetwork = data => {
 	else {
 		console.error(setStyle(data.message, 'red') + '\n');
 	}
+};
+const showStatAll = data => {
+	showStatUsage(data.usage);
+	console.log('--------------------------------------------------');
+	showStatNetwork(data.cluster);
 };
 
 module.exports = {

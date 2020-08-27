@@ -65,12 +65,14 @@ class LogRecord {
 		return Y + '/' + M + '/' + D + ' ' + h + ':' + m + ':' + s + '.' + ms;
 	}
 	toPlain () {
-		var head = '[' + this.title + ' ' + LogRecord.levelName[this.level] + ' (' + this.getDateTime(false) + ')]';
+		// 输出到文件
+		var head = '[' + this.title + ' (' + this.getDateTime(false) + ')]';
 		var body = this.data.join(' ');
 		return head + ' ' + body;
 	}
 	toPrint () {
-		var head = '[' + this.title + ' ' + LogRecord.levelName[this.level] + ' (' + this.getDateTime() + ')]';
+		// 打印到屏幕
+		var head = '[' + this.title + ' <' + LogRecord.levelName[this.level] + '> (' + this.getDateTime() + ')]';
 		head = setStyle(head, LogRecord.levelColor[this.level]);
 		var body = this.data.join(' ');
 		return head + ' ' + body;
