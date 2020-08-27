@@ -105,8 +105,8 @@ const createServer = (config, options) => {
 				process.exit();
 				return;
 			}
-			Logger.setOutput(cfg.log.output);
 			ResponsorManager.setConfig(cfg, async () => {
+				Logger.setOutput(cfg.log.output);
 				var list = hooks.ready.copy();
 				delete hooks.ready;
 				await Promise.all(list.map(async cb => await cb(param, cfg)));
