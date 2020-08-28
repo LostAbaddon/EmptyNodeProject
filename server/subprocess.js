@@ -1,7 +1,6 @@
 global.noEventModules = true;
 
 const Path = require('path');
-
 require("../core");
 loadall(__dirname, "../kernel", false);
 loadall(__dirname, "../db", false);
@@ -24,6 +23,19 @@ const setConfig = async cfg => {
 		_("Utils.MySQL.create")(cfg.mysql)
 	]);
 	Logger.info(cfg);
+
+	if (Array.is(cfg.init)) {
+		cfg.init.forEach(path => {
+			if (!String.is(path)) return;
+			if (path.indexOf('.') === 0) path = Path.join(process.cwd(), path);
+			require(path);
+		});
+	}
+	else if (String.is(cfg.init)) {
+		let path = cfg.init;
+		if (path.indexOf('.') === 0) path = Path.join(process.cwd(), path);
+		require(path);
+	}
 
 	process.send({ event: 'ready' });
 };
@@ -77,6 +89,35 @@ process.on('message', msg => {
 	}
 	else if (msg.event === 'suicide') {
 		process.exit();
+	}
+	else if (msg.event === 'loadjs') {
+		if (!msg.msg) return;
+
+		let filepaths;
+		if (Array.is(msg.msg)) {
+			filepaths = msg.msg.filter(f => String.is(f));
+		}
+		else if (String.is(msg.msg)) {
+			filepaths = [msg.msg];
+		}
+		else if (Array.is(msg.msg.path)) {
+			filepaths = msg.msg.path.filter(f => String.is(f));
+		}
+		else if (String.is(msg.msg.path)) {
+			filepaths = [msg.msg.path];
+		}
+		else {
+			return;
+		}
+		filepaths.forEach(filepath => {
+			if (filepath.indexOf('.') === 0) filepath = Path.join(process.cwd(), filepath);
+			try {
+				require(filepath);
+			}
+			catch (err) {
+				Logger.error('载入文件 ' + filepath + ' 失败：' + err.message);
+			}
+		});
 	}
 	else {
 		Logger.log('SubProcess(' + process.pid + ')::Message', msg);

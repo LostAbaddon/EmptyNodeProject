@@ -11,6 +11,10 @@ if (!!global.setTimeout) { // For Process instead of Thread
 	global.nextTick = !!process ? process.nextTick || global.setImmediate : global.setImmediate;
 	global.wait = promisify((delay, next) => {
 		var start = new Date().getTime();
+		if (Function.is(delay)) {
+			next = delay;
+			delay = 0;
+		}
 		setTimeout(() => next(new Date().getTime() - start), delay);
 	});
 	global.waitLoop = promisify(next => {

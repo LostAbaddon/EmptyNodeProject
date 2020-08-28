@@ -67,7 +67,11 @@ const createServer = (config, options) => {
 		if (Boolean.is(param.silence)) cfg.log.silence = param.silence;
 		else if (!Boolean.is(cfg.log.silence)) cfg.log.silence = false;
 
-		if (hooks.start.length > 0) hooks.start.forEach(cb => cb(param));
+		const Core = {
+			responsor: ResponsorManager,
+			galanet: require('./server/galanet')
+		};
+		if (hooks.start.length > 0) hooks.start.forEach(cb => cb(Core, param, cfg));
 		delete hooks.start;
 
 		// 设置日志相关
@@ -108,6 +112,7 @@ const createServer = (config, options) => {
 			}
 			ResponsorManager.setConfig(cfg, async () => {
 				Logger.setOutput(cfg.log.output);
+
 				var scts = {};
 				if (!isMultiProcess && !isDelegator) {
 					// 如果在多线程模式，则数据库由各子进程来控制，主进程不用自己控制
@@ -118,9 +123,24 @@ const createServer = (config, options) => {
 					console.log(cfg);
 				}
 
+				if (!global.isMultiProcess) {
+					if (Array.is(cfg.init)) {
+						cfg.init.forEach(path => {
+							if (!String.is(path)) return;
+							if (path.indexOf('.') === 0) path = Path.join(process.cwd(), path);
+							require(path);
+						});
+					}
+					else if (String.is(cfg.init)) {
+						let path = cfg.init;
+						if (path.indexOf('.') === 0) path = Path.join(process.cwd(), path);
+						require(path);
+					}
+				}
+
 				var list = hooks.ready.copy();
 				delete hooks.ready;
-				await Promise.all(list.map(async cb => await cb(param, cfg)));
+				await Promise.all(list.map(async cb => await cb(Core, param, cfg)));
 
 				global.processStat = global.ProcessStat.READY;
 				logger.log(config.welcome.success);
@@ -170,8 +190,14 @@ const createServer = (config, options) => {
 		}
 	});
 
-	clp.onStart = cb => hooks.start.push(cb);
-	clp.onReady = cb => hooks.ready.push(cb);
+	clp.onStart = cb => {
+		if (Function.is(cb)) hooks.start.push(cb);
+		return clp;
+	};
+	clp.onReady = cb => {
+		if (Function.is(cb)) hooks.ready.push(cb);
+		return clp;
+	};
 
 	return clp;
 };

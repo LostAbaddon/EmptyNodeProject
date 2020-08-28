@@ -214,7 +214,39 @@ const loadProcessor = (list, modules) => {
 	});
 };
 
-const setConfig = (cfg, callback) => {
+const broadcast = (msg, event) => {
+	if (!global.isMultiProcess) return 0;
+	var count = 0;
+	Slavers.forEach(worker => {
+		if (worker.state === SubProcessState.DYING || worker.state === SubProcessState.DIED) return;
+		worker.send({
+			event: event || msg.event || 'message',
+			type: 'broadcast',
+			msg
+		});
+		count ++;
+	});
+	return count;
+};
+const narrowcast = (msg, event) => {
+	if (!global.isMultiProcess) return null;
+	var workers = [];
+	Slavers.forEach(worker => {
+		if (worker.state === SubProcessState.DYING || worker.state === SubProcessState.DIED) return;
+		workers.push(worker);
+	});
+	if (workers.length === 0) return null;
+	var worker = workers.pick();
+	if (!worker) return null;
+	worker.send({
+		event: event || msg.event || 'message',
+		type: 'narrowcast',
+		msg
+	});
+	return worker;
+};
+
+const setConfig = async (cfg, callback) => {
 	if (Boolean.is(cfg.isDelegator)) isDelegator = cfg.isDelegator;
 
 	if (Array.is(cfg.api.services)) Config.services.push(...cfg.api.services);
@@ -224,11 +256,11 @@ const setConfig = (cfg, callback) => {
 
 	loadPrePostWidget(cfg);
 
+	var actions = [];
+
 	if (isDelegator) {
 		Config.process = 1;
-		launchWorkers(cfg, () => {
-			Galanet.shakehand();
-		});
+		actions.push(launchWorkers(cfg));
 	}
 	else if (cfg.process === 'auto') {
 		Config.process = require('os').cpus().length;
@@ -240,15 +272,16 @@ const setConfig = (cfg, callback) => {
 
 	if (Config.process > 0 && !isDelegator) {
 		isMultiProcess = true;
-		launchWorkers(cfg, () => {
-			Galanet.shakehand();
-		});
+		actions.push(launchWorkers(cfg));
 	}
 	else {
-		setTimeout(() => Galanet.shakehand(), 0);
+		actions.push(wait());
 	}
 
-	Galanet.setConfig(cfg, callback);
+	actions.push(Galanet.setConfig(cfg));
+	await Promise.all(actions);
+	Galanet.shakehand();
+	callback();
 };
 const setConcurrence = count => {
 	if (count >= 0) {
@@ -640,8 +673,10 @@ module.exports = {
 	setConcurrence,
 	setProcessCount,
 	extinct: extinctSlavers,
-	getUsage,
+	broadcast,
+	narrowcast,
 	refresh: restartWorkers,
+	getUsage,
 	get processCount () {
 		return Slavers.length;
 	},
