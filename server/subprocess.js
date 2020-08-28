@@ -1,7 +1,6 @@
 global.noEventModules = true;
 
 const Path = require('path');
-
 require("../core");
 loadall(__dirname, "../kernel", false);
 const ResponsorManager = require('./responser');
@@ -72,6 +71,35 @@ process.on('message', msg => {
 	}
 	else if (msg.event === 'suicide') {
 		process.exit();
+	}
+	else if (msg.event === 'loadjs') {
+		if (!msg.msg) return;
+
+		let filepaths;
+		if (Array.is(msg.msg)) {
+			filepaths = msg.msg.filter(f => String.is(f));
+		}
+		else if (String.is(msg.msg)) {
+			filepaths = [msg.msg];
+		}
+		else if (Array.is(msg.msg.path)) {
+			filepaths = msg.msg.path.filter(f => String.is(f));
+		}
+		else if (String.is(msg.msg.path)) {
+			filepaths = [msg.msg.path];
+		}
+		else {
+			return;
+		}
+		filepaths.forEach(filepath => {
+			if (filepath.indexOf('.') === 0) filepath = Path.join(process.cwd(), filepath);
+			try {
+				require(filepath);
+			}
+			catch (err) {
+				Logger.error('载入文件 ' + filepath + ' 失败：' + err.message);
+			}
+		});
 	}
 	else {
 		Logger.log('SubProcess(' + process.pid + ')::Message', msg);

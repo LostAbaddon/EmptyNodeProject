@@ -66,7 +66,11 @@ const createServer = (config, options) => {
 		if (Boolean.is(param.silence)) cfg.log.silence = param.silence;
 		else if (!Boolean.is(cfg.log.silence)) cfg.log.silence = false;
 
-		if (hooks.start.length > 0) hooks.start.forEach(cb => cb(param));
+		const Core = {
+			responsor: ResponsorManager,
+			galanet: require('./server/galanet')
+		};
+		if (hooks.start.length > 0) hooks.start.forEach(cb => cb(Core, param, cfg));
 		delete hooks.start;
 
 		// 设置日志相关
@@ -109,7 +113,7 @@ const createServer = (config, options) => {
 				Logger.setOutput(cfg.log.output);
 				var list = hooks.ready.copy();
 				delete hooks.ready;
-				await Promise.all(list.map(async cb => await cb(param, cfg)));
+				await Promise.all(list.map(async cb => await cb(Core, param, cfg)));
 
 				global.processStat = global.ProcessStat.READY;
 				logger.log(config.welcome.success);
@@ -159,8 +163,14 @@ const createServer = (config, options) => {
 		}
 	});
 
-	clp.onStart = cb => hooks.start.push(cb);
-	clp.onReady = cb => hooks.ready.push(cb);
+	clp.onStart = cb => {
+		if (Function.is(cb)) hooks.start.push(cb);
+		return clp;
+	};
+	clp.onReady = cb => {
+		if (Function.is(cb)) hooks.ready.push(cb);
+		return clp;
+	};
 
 	return clp;
 };
