@@ -17,24 +17,40 @@ const setConfig = async cfg => {
 		await ResponsorManager.load(Path.join(process.cwd(), Config.path));
 	}
 	ResponsorManager.loadProcessor(cfg);
+
+	var Redis = _("Utils.Redis");
+	var MySQL = _("Utils.MySQL");
+	var Core = {
+		responsor: ResponsorManager,
+		galanet: Galanet
+	};
+
 	await Promise.all([
 		Galanet.setConfig(cfg),
-		_("Utils.Redis.create")(cfg.redis),
-		_("Utils.MySQL.create")(cfg.mysql)
+		Redis.create(cfg.redis),
+		MySQL.create(cfg.mysql)
 	]);
-	Logger.info(cfg);
+
+	Core.redis = Redis.all();
+	if (Core.redis.length > 0) Core.redis = Redis.get(Core.redis[0]);
+	else Core.redis = null;
+	Core.mysql = MySQL.all();
+	if (Core.mysql.length > 0) Core.mysql = MySQL.get(Core.mysql[0]);
+	else Core.mysql = null;
 
 	if (Array.is(cfg.init)) {
 		cfg.init.forEach(path => {
 			if (!String.is(path)) return;
 			if (path.indexOf('.') === 0) path = Path.join(process.cwd(), path);
-			require(path);
+			let fun = require(path);
+			if (Function.is(fun)) fun(Core);
 		});
 	}
 	else if (String.is(cfg.init)) {
 		let path = cfg.init;
 		if (path.indexOf('.') === 0) path = Path.join(process.cwd(), path);
-		require(path);
+		let fun = require(path);
+		if (Function.is(fun)) fun(Core);
 	}
 
 	process.send({ event: 'ready' });
@@ -118,9 +134,6 @@ process.on('message', msg => {
 				Logger.error('载入文件 ' + filepath + ' 失败：' + err.message);
 			}
 		});
-	}
-	else {
-		Logger.log('SubProcess(' + process.pid + ')::Message', msg);
 	}
 });
 

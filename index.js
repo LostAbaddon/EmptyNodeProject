@@ -113,14 +113,21 @@ const createServer = (config, options) => {
 			ResponsorManager.setConfig(cfg, async () => {
 				Logger.setOutput(cfg.log.output);
 
-				var scts = {};
 				if (!isMultiProcess && !isDelegator) {
+					let Redis = _("Utils.Redis");
+					let MySQL = _("Utils.MySQL");
 					// 如果在多线程模式，则数据库由各子进程来控制，主进程不用自己控制
 					await Promise.all([
-						_("Utils.Redis.create")(cfg.redis),
-						_("Utils.MySQL.create")(cfg.mysql)
+						Redis.create(cfg.redis),
+						MySQL.create(cfg.mysql)
 					]);
-					console.log(cfg);
+
+					Core.redis = Redis.all();
+					if (Core.redis.length > 0) Core.redis = Redis.get(Core.redis[0]);
+					else Core.redis = null;
+					Core.mysql = MySQL.all();
+					if (Core.mysql.length > 0) Core.mysql = MySQL.get(Core.mysql[0]);
+					else Core.mysql = null;
 				}
 
 				if (!global.isMultiProcess) {
@@ -128,13 +135,15 @@ const createServer = (config, options) => {
 						cfg.init.forEach(path => {
 							if (!String.is(path)) return;
 							if (path.indexOf('.') === 0) path = Path.join(process.cwd(), path);
-							require(path);
+							let fun = require(path);
+							if (Function.is(fun)) fun(Core);
 						});
 					}
 					else if (String.is(cfg.init)) {
 						let path = cfg.init;
 						if (path.indexOf('.') === 0) path = Path.join(process.cwd(), path);
-						require(path);
+						let fun = require(path);
+						if (Function.is(fun)) fun(Core);
 					}
 				}
 
