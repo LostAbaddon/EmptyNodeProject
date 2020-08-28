@@ -16,8 +16,19 @@ const setConfig = async cfg => {
 		await ResponsorManager.load(Path.join(process.cwd(), Config.path));
 	}
 	ResponsorManager.loadProcessor(cfg);
-
 	await Galanet.setConfig(cfg);
+	if (Array.is(cfg.init)) {
+		cfg.init.forEach(path => {
+			if (!String.is(path)) return;
+			if (path.indexOf('.') === 0) path = Path.join(process.cwd(), path);
+			require(path);
+		});
+	}
+	else if (String.is(cfg.init)) {
+		let path = cfg.init;
+		if (path.indexOf('.') === 0) path = Path.join(process.cwd(), path);
+		require(path);
+	}
 
 	process.send({ event: 'ready' });
 };

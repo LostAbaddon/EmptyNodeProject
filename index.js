@@ -111,6 +111,22 @@ const createServer = (config, options) => {
 			}
 			ResponsorManager.setConfig(cfg, async () => {
 				Logger.setOutput(cfg.log.output);
+
+				if (!global.isMultiProcess) {
+					if (Array.is(cfg.init)) {
+						cfg.init.forEach(path => {
+							if (!String.is(path)) return;
+							if (path.indexOf('.') === 0) path = Path.join(process.cwd(), path);
+							require(path);
+						});
+					}
+					else if (String.is(cfg.init)) {
+						let path = cfg.init;
+						if (path.indexOf('.') === 0) path = Path.join(process.cwd(), path);
+						require(path);
+					}
+				}
+
 				var list = hooks.ready.copy();
 				delete hooks.ready;
 				await Promise.all(list.map(async cb => await cb(Core, param, cfg)));
