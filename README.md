@@ -107,9 +107,11 @@ pipe/socket —————┘　　　　　　　　　　　 　　　　　�
 	+	小周期（shortExpire）：读取数据时的被模块自动过期的时长
 	+	周期盐（saltExpire）：在大小周期上的随机浮动范围，避免大量键同时过期导致的问题
 
-## Galanet 网络
+## Galanet 与 Ising 网络
 
 一个简单的分布式网络。
+
+Galanet 是内网系统，节点之间彼此信任；Ising 是外网系统，通讯都需要认证。Ising 也负责共识。
 
 ## 计划
 
