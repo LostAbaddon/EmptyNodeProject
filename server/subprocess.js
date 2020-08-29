@@ -17,17 +17,24 @@ const setConfig = async cfg => {
 	}
 	ResponsorManager.loadProcessor(cfg);
 	await Galanet.setConfig(cfg);
+
+	var Core = {
+		responsor: ResponsorManager,
+		galanet: Galanet
+	};
 	if (Array.is(cfg.init)) {
 		cfg.init.forEach(path => {
 			if (!String.is(path)) return;
 			if (path.indexOf('.') === 0) path = Path.join(process.cwd(), path);
-			require(path);
+			let fun = require(path);
+			if (Function.is(fun)) fun(Core);
 		});
 	}
 	else if (String.is(cfg.init)) {
 		let path = cfg.init;
 		if (path.indexOf('.') === 0) path = Path.join(process.cwd(), path);
-		require(path);
+		let fun = require(path);
+		if (Function.is(fun)) fun(Core);
 	}
 
 	process.send({ event: 'ready' });
