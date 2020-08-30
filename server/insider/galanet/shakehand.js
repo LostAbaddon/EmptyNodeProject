@@ -18,7 +18,7 @@ const responsor = (param, query, url, data, method, source, host, port) => {
 
 	return {
 		ok: true,
-		data: [...Galanet.availableServices]
+		data: Galanet.getNodeInfo()
 	}
 };
 

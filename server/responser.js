@@ -2,6 +2,7 @@ const Path = require('path');
 const Process = require('child_process');
 const Galanet = require('./galanet');
 const Watcher = require('../kernel/watcher');
+const Personel = require('./personel');
 const newLongID = _('Message.newLongID');
 const ModuleManager = _('Utils.ModuleManager');
 const Logger = new (_("Utils.Logger"))('Responsor');
@@ -82,7 +83,8 @@ const forkChildren = (cfg, callback) => {
 		if (msg.event === 'online') {
 			worker.send({
 				event: 'initial',
-				data: cfg
+				data: cfg,
+				personel: global.Personel
 			});
 		}
 		else if (msg.event === 'ready') {
@@ -247,8 +249,9 @@ const narrowcast = (msg, event) => {
 };
 
 const setConfig = async (cfg, callback) => {
-	if (Boolean.is(cfg.isDelegator)) isDelegator = cfg.isDelegator;
+	await Personel.init(cfg);
 
+	if (Boolean.is(cfg.isDelegator)) isDelegator = cfg.isDelegator;
 	if (Array.is(cfg.api.services)) Config.services.push(...cfg.api.services);
 	else if (String.is(cfg.api.services)) Config.services.push(cfg.api.services);
 	Config.options = cfg;

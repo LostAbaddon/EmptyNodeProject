@@ -3,7 +3,6 @@ const Net = require('net');
 const Axios = require('axios');
 const TCP = require('../kernel/tcp');
 const UDP = require('../kernel/udp');
-const Personel = require('./personel');
 const Logger = new (_("Utils.Logger"))('Galanet');
 var ResponsorManager;
 
@@ -25,10 +24,9 @@ const setConfig = async (cfg, callback) => {
 		Config.services.push(...cfg.api.services);
 	}
 	ResponsorManager.load(Path.join(__dirname, 'insider'), false);
+
 	if (isSlaver) return callback();
 	if (!cfg.node || !cfg.node.length || cfg.node.length <= 0) return callback();
-
-	await Personel.init(cfg);
 
 	var nodes = {};
 	cfg.node.forEach(node => {
@@ -313,6 +311,13 @@ const removeNode = node => {
 	}
 };
 
+const getNodeInfo = () => {
+	var info = {};
+	info.id = global.Personel.id;
+	info.pubkey = global.Personel.publicKey;
+	info.services = [...Config.services];
+	return info;
+};
 const shutdownAll = () => new Promise(async res => {
 	if (Config.nodes.length === 0) return res(0);
 	var told = 0;
@@ -394,7 +399,8 @@ const connectNode = node => new Promise(res => {
 			return res(err);
 		}
 		node.available = true;
-		node.services = [...data];
+		console.log(data);
+		node.services = [...data.services];
 		Logger.info('连接' + node.name + '成功！');
 		res();
 	});
@@ -452,6 +458,7 @@ module.exports = {
 	checkService,
 	launch: launchTask,
 	getUsage,
+	getNodeInfo,
 	shutdownAll,
 	get availableServices () {
 		return Config.services;

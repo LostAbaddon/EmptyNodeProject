@@ -82,6 +82,7 @@ const doTask = async (tid, target, data) => {
 
 process.on('message', msg => {
 	if (msg.event === 'initial') {
+		global.Personel = msg.personel;
 		setConfig(msg.data);
 	}
 	else if (msg.event === 'task') {

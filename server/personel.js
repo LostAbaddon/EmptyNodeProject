@@ -8,7 +8,7 @@ const Logger = new (_("Utils.Logger"))('Personel');
 const CryptoType = 'rsa';
 const HashType = 'RSA-SHA256';
 
-global.Personel = {};
+global.Personel = global.Personel || { name: 'fuck' };
 
 const init = async cfg => {
 	var filepath = String.is(cfg.personel) ? cfg.personel : './personel.json';
@@ -49,8 +49,6 @@ const init = async cfg => {
 	global.Personel.id = personel.id;
 	global.Personel.publicKey = personel.publicKey;
 	global.Personel.privateKey = personel.privateKey;
-
-	console.log(global.Personel);
 };
 const createPersonel = () => {
 	var info = {
