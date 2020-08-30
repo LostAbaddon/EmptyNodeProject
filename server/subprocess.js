@@ -120,7 +120,7 @@ process.on('message', msg => {
 		});
 	}
 	else {
-		Logger.log('SubProcess(' + process.pid + ')::Message', msg);
+		// Logger.info('SubProcess(' + process.pid + ')::Message', msg);
 	}
 });
 

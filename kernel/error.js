@@ -55,5 +55,14 @@ Errors.GalanetError.UnavailableNodeAddress = new BlackHole("无法解析的节�
 Errors.GalanetError.NoSuchNode = new BlackHole("当前集群中无指定节点", "GLN-00007", "NoSuchNode");
 Errors.GalanetError.Unauthorized = new BlackHole("无权限调用本接口", "GLN-00008", "Unauthorized");
 
+Errors.Quark = {};
+Errors.Quark.DefaultPackerError = new BlackHole("不可用默认打包器", "QK-000001", "DefaultPackerError");
+Errors.Quark.ConflictPackerError = new BlackHole("Quark打包器冲突", "QK-000002", "ConflictPackerError");
+Errors.Quark.ConflictPrefixError = new BlackHole("数据类型前缀冲突", "QK-000003", "ConflictPrefixError");
+Errors.Quark.PackerNotFoundError = new BlackHole("指定的打包器不存在", "QK-000004", "PackerNotFoundError");
+Errors.Quark.ParseElementError = new BlackHole("解析Quark轻数据错误", "QK-000011", "ParseElementError");
+Errors.Quark.ParseFixLengthArrayError = new BlackHole("解析Quark固长数组错误", "QK-000012", "ParseFixLengthArrayError");
+Errors.Quark.ParseVarLengthArrayError = new BlackHole("解析Quark变长数组错误", "QK-000013", "ParseVarLengthArrayError");
+
 global.BlackHole = BlackHole;
 global.Errors = Errors;

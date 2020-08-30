@@ -3,6 +3,7 @@ const Net = require('net');
 const Axios = require('axios');
 const TCP = require('../kernel/tcp');
 const UDP = require('../kernel/udp');
+const Personel = require('./personel');
 const Logger = new (_("Utils.Logger"))('Galanet');
 var ResponsorManager;
 
@@ -23,9 +24,11 @@ const setConfig = async (cfg, callback) => {
 	if (!!cfg.api?.services) {
 		Config.services.push(...cfg.api.services);
 	}
-	require('./responser').load(Path.join(__dirname, 'insider'), false);
+	ResponsorManager.load(Path.join(__dirname, 'insider'), false);
 	if (isSlaver) return callback();
 	if (!cfg.node || !cfg.node.length || cfg.node.length <= 0) return callback();
+
+	await Personel.init(cfg);
 
 	var nodes = {};
 	cfg.node.forEach(node => {
@@ -60,6 +63,7 @@ const setConfig = async (cfg, callback) => {
 
 	callback();
 };
+
 const shakehand = ip => {
 	Config.nodes.forEach(node => {
 		if (node.available) return;
