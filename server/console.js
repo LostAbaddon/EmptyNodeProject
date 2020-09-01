@@ -305,23 +305,33 @@ const showStatNetwork = data => {
 	if (data.ok) {
 		data = data.data;
 		console.log('等待中的任务数：\t' + data.pending);
-		let downed = [], active = [];
-		data.nodes.forEach(node => {
-			if (node.available) active.push(node);
-			else downed.push(node);
+
+		console.log('　　可用节点数：\t' + data.nodes.length);
+		data.nodes.forEach((user, i) => {
+			console.log(setStyle('======== 节点-' + (i + 1) + ' ========', 'bold green'));
+			console.log('　　　　　　　ID：' + user.node);
+			console.log('　　　　　优先度：' + (Math.round(user.power * 100) / 100));
+			console.log('　　　　可用服务：' + (!!user.services.join ? user.services.join(', ') : user.services));
+			console.log('　　　　任务情况：' + user.taskInfo.done + ' / ' + user.taskInfo.total + '    失败：' + user.taskInfo.failed);
+			console.log('　　　　可用连接数：' + user.conns.length);
+			user.conns.forEach(conn => {
+				if (conn.connected) {
+					console.log(setStyle('　　　　-------- 连接：' + conn.name + ' --------', 'bold yellow'));
+				}
+				else {
+					console.log(setStyle('　　　　-------- 连接：' + conn.name + '（连接已断开） --------', 'bold magenta'));
+				}
+				console.log('　　　　　　　响应未满：' + (conn.available ? '是' : '否'));
+				console.log('　　　　　　　　优先度：' + (Math.round(conn.power * 100) / 100));
+				console.log('　　　　　连接失败次数：' + conn.connFailed);
+				console.log('　　　　　　可转发类别：' + (conn.filter.length === 0 ? '所有' : conn.filter.join(', ')));
+				console.log('　　　　　　　任务情况：' + conn.taskInfo.done + ' / ' + conn.taskInfo.total + '    失败：' + conn.taskInfo.failed);
+			});
 		});
-		active.forEach(node => {
-			let list = [];
-			list.push(setStyle('节点 ' + node.name, 'bold'));
-			list.push('　连线失败: ' + node.failed);
-			list.push('　可用服务: ' + (node.filter.length > 0 ? node.filter.join('; ') : '[ALL]'));
-			list.push('　　　任务: ' + node.tasks.done + ' / ' + node.tasks.total);
-			list.push('　　总耗时: ' + node.tasks.time + ' ms\t\t\t\t加权平均耗时: ' + (Math.round(node.tasks.energy * 100) / 100) + ' ms');
-			list.push('　负载指数: ' + (Math.round(node.tasks.power * 100) / 100));
-			console.log(list.join('\n'));
-		});
-		downed.forEach(node => {
-			console.log(setStyle('节点 ' + node.name + ' 已离线', 'bold yellow'));
+
+		console.log(setStyle('等待连接节点数：\t' + data.waitingConns.length, 'bold red'));
+		data.waitingConns.forEach(conn => {
+			console.log('    ' + conn);
 		});
 	}
 	else {

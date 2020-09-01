@@ -12,7 +12,7 @@ var ResponsorManager;
 const AvailableSource = [ 'tcp', 'udp', 'http' ];
 const Config = {
 	prefix: '',
-	nodes: [],
+	// nodes: [],
 	services: []
 }
 const Pending = [];
@@ -23,6 +23,7 @@ class RichAddress extends Dealer {
 	protocol = '';
 	host = '';
 	port = '';
+	connFail = 0;
 	filter = new Set();  // 本地转发哪些服务
 	constructor (protocol, host, port, filter) {
 		super();
@@ -46,11 +47,11 @@ class RichAddress extends Dealer {
 			this.protocol = protocol;
 			this.host = host;
 			this.port = port;
-			if (String.is(filter)) filter = filter.split('/').filter(f => !!f && f.length > 0);
-			filter.forEach(f => this.filter.add(f));
+			if (String.is(filter)) filter = [filter];
+			if (Array.is(filter)) filter.forEach(f => this.filter.add(f));
 			this.#name = protocol + '/' + host + '/' + port;
 		}
-		this.available = false;
+		this.connected = false;
 	}
 	addFilter (filter) {
 		// filter中为空表示对所有服务都可转发
@@ -97,20 +98,22 @@ class RichAddress extends Dealer {
 		return this.#name;
 	}
 	get fullname () {
-		return this.#name + '/' + [...this.filter].join('/');
+		return this.#name + '/' + [...this.filter].join('|');
 	}
 	get isEmpty () {
-		return !!this.#name;
+		return !this.#name;
 	}
 	static parse (node) {
 		var conn = node.split('/');
 		var source = conn[0];
 		if (AvailableSource.indexOf(source) < 0) return null;
-		var ip = conn[1], port = conn[2] * 1, filter = conn.splice(3, conn.length).filter(f => !!f && f.length > 0);
+		var ip = conn[1], port = conn[2] * 1, filter = conn.splice(3, conn.length).filter(f => !!f && f.length > 0).join('/');
 		if (!Net.isIP(ip) || !Number.is(port)) return null;
 		var info = new RichAddress(source, ip, port, filter);
 		return info;
 	}
+	static Limit = 5;
+	static Initial = 10;
 }
 class UserNode extends Dealer {
 	name = "";
@@ -122,9 +125,11 @@ class UserNode extends Dealer {
 		if (!!name) this.name = name;
 	}
 	addConn (conn) {
+		if (this.state === Dealer.State.DYING || this.state === Dealer.State.DIED) return;
+
 		if (String.is(conn)) conn = RichAddress.parse(conn);
 		else if (!(conn instanceof RichAddress)) return;
-		if (!conn) return;
+		if (!conn || conn.isEmpty) return;
 
 		var has = false;
 		this.#pool.forEach(cn => {
@@ -136,6 +141,8 @@ class UserNode extends Dealer {
 		if (!has) this.#pool.addMember(conn);
 	}
 	removeConn (conn) {
+		if (this.state === Dealer.State.DYING || this.state === Dealer.State.DIED) return;
+
 		if (String.is(conn)) conn = RichAddress.parse(conn);
 		else if (!(conn instanceof RichAddress)) return;
 		if (!conn) return;
@@ -146,9 +153,12 @@ class UserNode extends Dealer {
 		this.#pool.removeMember(target);
 	}
 	forEach (cb) {
+		if (this.state === Dealer.State.DYING || this.state === Dealer.State.DIED) return;
 		this.#pool.forEach(cb);
 	}
 	addService (services) {
+		if (this.state === Dealer.State.DYING || this.state === Dealer.State.DIED) return;
+
 		if (services === 'all') {
 			this.#services.clear();
 			this.#services = 'all';
@@ -160,15 +170,54 @@ class UserNode extends Dealer {
 		}
 	}
 	removeService (service) {
+		if (this.state === Dealer.State.DYING || this.state === Dealer.State.DIED) return;
+
 		this.#services.delete(service);
 	}
 	resetServices () {
+		if (this.state === Dealer.State.DYING || this.state === Dealer.State.DIED) return;
+
 		if (this.#services instanceof Set) {
 			this.#services.clear();
 		}
 		else {
 			this.#services = new Set();
 		}
+	}
+	matchService (service) {
+		if (this.state === Dealer.State.DYING || this.state === Dealer.State.DIED) return false;
+
+		// 如果对方注册的服务是所有服务，则返回所有可用连接
+		if (this.#services === 'all') return true;
+
+		return this.#services.has(service);
+	}
+	pickConn (url) {
+		var list = [];
+
+		this.#pool.forEach(conn => {
+			if (!conn.connected) return;
+
+			if (conn.name === 'local') {
+				if (!isDelegator) list.push(conn);
+				return;
+			}
+
+			// 如果filter为空，表示转发所有服务
+			if (conn.filter.size === 0) {
+				list.push(conn);
+				return;
+			}
+
+			var ok = false;
+			for (let f of conn.filter) {
+				if (url.indexOf(f) !== 0) continue;
+				ok = true;
+				break;
+			}
+			if (ok) list.push(conn);
+		});
+		return list;
 	}
 	suicide () {
 		var task = 2;
@@ -191,6 +240,19 @@ class UserNode extends Dealer {
 		if (this.#services instanceof Set) return [...this.#services];
 		return 'all';
 	}
+	get count () {
+		return this.#pool.count;
+	}
+	get availableCount () {
+		var count = 0;
+		this.#pool.forEach(conn => {
+			if (conn.isEmpty || !conn.connected) return;
+			count ++;
+		});
+		return count;
+	}
+	static Limit = 10;
+	static Initial = 10;
 }
 class UserPool extends DealerPool {
 	waitingConns = [];
@@ -226,6 +288,40 @@ class UserPool extends DealerPool {
 			m.removeConn(conn);
 		});
 	}
+	pickConn (url) {
+		var list = [];
+		if (!url) return null;
+
+		var parts = url.split('/').filter(f => !!f && f.length > 0);
+		if (parts.length === 0) return null;
+
+		var service = parts[0];
+		var users = [], noMatch = true;
+
+		// 选择自称可提供指定服务的节点
+		this.forEach(user => {
+			if (user.matchService(service)) {
+				noMatch = false;
+				if (user.available) users.push(user);
+			}
+		});
+		if (users.length === 0) return noMatch;
+
+		// 将所有可提供服务节点的所有可接受服务的连接都筛出来
+		url = parts.join('/');
+		noMatch = true;
+		users.forEach(user => {
+			var conns = user.pickConn(url);
+			conns.forEach(conn => {
+				noMatch = false;
+				if (conn.available) list.push([user, conn, user.power + conn.power]);
+			});
+		});
+		if (list.length === 0) return noMatch;
+
+		list.sort((c1, c2) => c1[2] - c2[2]);
+		return list[0];
+	}
 	getUser (name) {
 		var user = null;
 		this.forEach(u => {
@@ -236,13 +332,13 @@ class UserPool extends DealerPool {
 	}
 	shakehand (ip) {
 		this.waitingConns.forEach(conn => {
-			if (conn.available) return;
+			if (conn.connected) return;
 			if (!!ip && conn.host !== ip) return;
 			connectNode(conn);
 		});
 		this.forEach(mem => {
 			mem.forEach(conn => {
-				if (conn.available) return;
+				if (conn.connected) return;
 				if (!!ip && conn.host !== ip) return;
 				connectNode(conn);
 			});
@@ -259,6 +355,25 @@ class UserPool extends DealerPool {
 			});
 		});
 		return has;
+	}
+	get availableCount () {
+		var count = 0;
+		this.forEach(user => {
+			if (user.name === 'local') return;
+			count += user.availableCount;
+		});
+		return count;
+	}
+
+	showAll () {
+		console.log('=============== Show All ===============');
+		console.log(this.waitingConns.map(c => '        ----> ' + c.fullname).join('\n'));
+		this.forEach(user => {
+			console.log('    ' + user.name + '/' + (user.services === 'all' ? 'all' : user.services.join(':')) + '    P:' + user.power + '    T:' + user.working);
+			user.forEach(conn => {
+				console.log('        ====> ' + conn.fullname + '    P:' + conn.power + '    T:' + conn.working);
+			});
+		});
 	}
 }
 const UserManager = new UserPool();
@@ -295,15 +410,22 @@ const setConfig = async (cfg, callback) => {
 		UserManager.waitingConns.push(nodes[tag]);
 	}
 	var local = new UserNode('local');
+	local.addService('all');
+	var conn = new RichAddress('http', 'local', 0);
+	conn.connected = true;
+	local.addConn(conn);
 	UserManager.addMember(local);
+	UserManager.localUser = local;
+	UserManager.localConn = conn;
 
 	callback();
 };
 
 const reshakehand = ip => {
-	var res = Reshakings.get(ip);
-	if (!!res) {
-		clearTimeout(res);
+	var timer = Reshakings.get(ip);
+	if (!!timer) {
+		clearTimeout(timer);
+		timer = null;
 	}
 	Reshakings.set(ip, setTimeout(() => {
 		Reshakings.delete(ip);
@@ -321,31 +443,10 @@ const launchTask = (responsor, param, query, url, data, method, source, ip, port
 	var sender = (!!param.originSource || !!param.originHost + !!param.originPort)
 		? (param.originSource + '/' + param.originHost + '/' + param.originPort)
 		: (source + '/' + ip + '/' + port), sendInfo = method + ':' + url;
-	var resps = [];
-	// 筛选符合注册服务要求的节点
-	Config.nodes.forEach(node => {
-		if (!node.available) return;
-		if (node.name === 'local') {
-			if (!isDelegator) resps.push(node);
-			return;
-		}
 
-		var parts = url.split('/').filter(f => !!f && f.length > 0);
-		if ((!!node.services && node.services.length > 0) && !node.services.includes(parts[0])) return;
-		if (!node.filter || node.filter.length === 0) return resps.push(node);
-		var ok = node.filter.some(filter => {
-			var l = filter.length;
-			if (parts.length < l) return false;
-			for (let i = 0; i < l; i ++) {
-				if (parts[i] !== filter[i]) return false;
-			}
-			return true;
-		});
-		if (ok) resps.push(node);
-	});
-
-	// 若无适格节点
-	if (resps.length === 0) {
+	var conn = UserManager.pickConn(url);
+	if (conn === true) {
+		// 如果没有任何一个链接能匹配该请求，则本地处理
 		if (isDelegator) {
 			let err = new Errors.GalanetError.EmptyClustor();
 			let result = {
@@ -358,13 +459,11 @@ const launchTask = (responsor, param, query, url, data, method, source, ip, port
 			return res(result);
 		}
 		else {
-			resps = [Config.nodes.filter(node => node.name === 'local')[0]];
+			conn = [UserManager.localUser, UserManager.localConn];
 		}
 	}
-
-	// 筛选任务未满的节点
-	resps = resps.filter(resp => resp.taskInfo.total <= resp.taskInfo.done * 2);
-	if (resps.length === 0) {
+	else if (conn === false) {
+		// 如果有链接能匹配该请求但当前不可用，则添加到等待池
 		let cb = result => {
 			if (!!callback) callback(result);
 			res(result);
@@ -374,62 +473,77 @@ const launchTask = (responsor, param, query, url, data, method, source, ip, port
 		Pending.push([responsor, param, query, url, data, method, source, ip, port, cb]);
 		return;
 	}
-	resps.sort((ra, rb) => ra.taskInfo.power - rb.taskInfo.power);
-	var resp = resps[0];
+	else if (conn === null) {
+		Logger.warn("请求路径" + sendInfo + '不合法');
+		let err = new Errors.GalanetError.WrongQuestPath('请求路径：' + url);
+		let result = {
+			ok: false,
+			code: err.code,
+			message: err.message
+		};
+		if (!!callback) callback(result);
+		return res(result);
+	}
 
-	var time = now(), result;
-	resp.taskInfo.total ++;
-	resp.taskInfo.power = resp.taskInfo.energy * (1 + resp.taskInfo.total - resp.taskInfo.done);
-	if (resp.name === 'local') { // 本地处理
+	var node, result, task = {};
+	[node, conn] = conn;
+
+	// 记录开始信息
+	node.start(task);
+	conn.start(task);
+
+	// 处理请求：本地转发给业务进程，远端则进行通讯发送请求
+	if (node === UserManager.localUser) {
 		result = await ResponsorManager.launchLocally(responsor, param, query, url, data, method, source, ip, port);
 	}
-	else { // 发送给群组节点处理
-		Logger.log("请求" + sender + '/' + sendInfo + '被转发至' + resp.name + '。 Q: ' + JSON.stringify(query) + '; P: ' + JSON.stringify(param));
+	else {
+		Logger.log("请求" + sender + '/' + sendInfo + '被转发至' + conn.name + '。 Q: ' + JSON.stringify(query) + '; P: ' + JSON.stringify(param));
 
 		param = param || {};
 		param.isGalanet = true;
 		param.originHost = ip;
 		param.originPort = port;
 		param.originSource = source;
-		result = await sendRequest(resp, method, url, param);
+		result = await sendRequest(conn, method, url, param);
 	}
-	resp.taskInfo.done ++;
-	time = now() - time;
+
+	// 记录请求结果
+	node.finish(task, result.ok);
+	conn.finish(task, result.ok);
+
+	// 处理返回结果
 	if (!result.ok) {
-		time = 1.2 * time + 20;
 		if (result.code === Errors.GalanetError.NotFriendNode.code) {
-			Logger.error(resp.name + ' : not friend node (' + url + ')');
-			resp.failed ++;
-			if (resp.failed === 3) Config.nodes.remove(resp);
+			Logger.error(conn.name + ' : not friend node (' + url + ')');
+			conn.connFail ++;
+			if (conn.connFail > 3) {
+				conn.connected = false;
+			}
 			await waitLoop();
 			result = await launchTask(responsor, param, query, url, data, method, source, ip, port);
 		}
 		else if (result.code === Errors.GalanetError.CannotService.code) {
-			Logger.error(resp.name + ' : cannot service (' + url + ')');
-			let p = url.split('/')[0];
-			if (!!p && !!resp.services) resp.services.remove(p);
-			resp.failed ++;
-			if (resp.failed === 3) Config.nodes.remove(resp);
+			Logger.error(conn.name + ' : cannot service (' + url + ')');
+			let service = url.split('/').filter(u => u.length > 0)[0];
+			if (!!service && (node.services !== 'all')) node.removeService(service);
+			conn.connFail ++;
+			if (conn.connFail > 3) {
+				conn.connected = false;
+			}
 			await waitLoop();
 			result = await launchTask(responsor, param, query, url, data, method, source, ip, port);
 		}
 		else {
-			Logger.error(resp.name + ' error(' + resp.code + '): ' + resp.message);
+			Logger.error(conn.name + ' error(' + result.code + '): ' + result.message);
 		}
 	}
-	else {
-		resp.failed = 0;
-	}
-	resp.taskInfo.time += time;
-	resp.taskInfo.energy = (resp.taskInfo.time / resp.taskInfo.done * 2 + time) / 3;
-	resp.taskInfo.power = resp.taskInfo.energy * (1 + resp.taskInfo.total - resp.taskInfo.done);
 
 	if (!!callback) callback(result);
 	res(result);
 
 	var task = Pending.shift();
 	if (!!task) {
-		Logger.log("池中请求" + sender + '/' + sendInfo + '被转发至' + resp.name + '。 Q: ' + JSON.stringify(query) + '; P: ' + JSON.stringify(param));
+		Logger.log("池中请求" + sender + '/' + sendInfo + '被转发至' + conn.name + '。 Q: ' + JSON.stringify(query) + '; P: ' + JSON.stringify(param));
 		launchTask(...task);
 	}
 });
@@ -437,16 +551,40 @@ const getUsage = () => {
 	var result = {};
 	result.pending = Pending.length;
 	result.nodes = [];
-	Config.nodes.forEach(worker => {
+	UserManager.forEach(user => {
 		var info = {
-			name: worker.name,
-			available: !!worker.available,
-			failed: worker.failed,
-			filter: !!worker.filter ? worker.filter.map(f => f.join('/')) : [],
-			tasks: worker.taskInfo
+			node: user.name,
+			services: user.services,
+			power: user.power,
+			taskInfo: {
+				total: user.total,
+				done: user.done,
+				working: user.working,
+				failed: user.failed
+			},
+			conns: []
 		};
+		user.forEach(conn => {
+			if (conn.isEmpty) return;
+			var i = {
+				name: conn.name,
+				connected: conn.connected,
+				available: conn.available,
+				connFailed: conn.connFail,
+				power: conn.power,
+				filter: [...conn.filter],
+				taskInfo: {
+					total: conn.total,
+					done: conn.done,
+					working: conn.working,
+					failed: conn.failed
+				}
+			};
+			info.conns.push(i);
+		});
 		result.nodes.push(info);
 	});
+	result.waitingConns = UserManager.waitingConns.map(conn => conn.fullname);
 	return result;
 };
 
@@ -531,7 +669,7 @@ const shutdownAll = () => new Promise(async res => {
 const sendRequest = async (node, method, path, message) => {
 	var result;
 	try {
-		if (node.method === 'http') {
+		if (node.protocol === 'http') {
 			result = await httpClient(node.host, node.port, method, Config.prefix + path, message);
 		}
 		else {
@@ -541,14 +679,14 @@ const sendRequest = async (node, method, path, message) => {
 				data: message
 			};
 			let err;
-			if (node.method === 'tcp') {
+			if (node.protocol === 'tcp') {
 				[result, err] = await TCP.client(node.host, node.port, data);
 			}
-			else if (node.method === 'udp') {
+			else if (node.protocol === 'udp') {
 				[result, err] = await UDP.client(node.host, node.port, data);
 			}
 			else {
-				let err = new Errors.GalanetError.WrongProtocol('错误的请求协议：' + node.method);
+				let err = new Errors.GalanetError.WrongProtocol('错误的请求协议：' + node.protocol);
 				return {
 					ok: false,
 					code: err.code,
@@ -621,10 +759,16 @@ const connectNode = node => new Promise(res => {
 		}
 		if (!check) return res();
 
+		node.connected = true;
+		node.failed = 0;
+		node.connFail = 0;
+		node.power = RichAddress.Initial;
+		node.energy = RichAddress.Initial;
 		UserManager.addConn(info.id, node);
 
 		var user = UserManager.getUser(info.id);
-		user.addService(info.services);
+		if (!info.services || info.services.length === 0) user.addService('all');
+		else user.addService(info.services);
 		user.pubkey = info.pubkey;
 		Logger.info('连接' + node.name + '成功！');
 		res();
@@ -689,6 +833,6 @@ module.exports = {
 		return Config.services;
 	},
 	get isInGroup () {
-		return Config.nodes.filter(n => n.available).length > 1;
+		return UserManager.availableCount > 1;
 	}
 };

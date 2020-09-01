@@ -1,6 +1,6 @@
 class Dealer {
 	state = Dealer.State.IDLE;
-	available = true;
+	connected = true;
 	total = 0;
 	done = 0;
 	timespent = 0;
@@ -9,16 +9,14 @@ class Dealer {
 	power = 0;
 	#map = new Map();
 	#deads = [];
-	get working () {
-		return this.total - this.done;
-	}
-	get available () {
-		return this.constructor.limit <= 0 || this.pending <= this.constructor.Limit;
+	constructor () {
+		this.energy = this.constructor.Initial;
+		this.power = this.constructor.Initial;
 	}
 	start (task, callback) {
 		if (this.state === Dealer.State.DYING || this.state === Dealer.State.DIED) {
 			let err = new Errors.Dealer.DealerNotAvailable();
-			callback({
+			if (!!callback) callback({
 				ok: false,
 				code: err.code,
 				message: err.message
@@ -31,7 +29,7 @@ class Dealer {
 		if (!!cb) {
 			let ncb = result => {
 				cb(result);
-				callback(result);
+				if (!!callback) callback(result);
 			}
 			this.#map.set(task, ncb);
 			return;
@@ -42,9 +40,6 @@ class Dealer {
 		this.#map.set(task, callback);
 	}
 	finish (task, result) {
-		var cb = this.#map.get(task);
-		if (!cb) return;
-
 		task._finishtime = now();
 		var success;
 		if (Boolean.is(result)) success = result;
@@ -69,7 +64,9 @@ class Dealer {
 			if (this.state === Dealer.State.DYING) this.#suicide();
 			else if (this.state !== Dealer.State.DIED) this.state = Dealer.State.IDLE;
 		}
-		cb(result);
+
+		var cb = this.#map.get(task);
+		if (!!cb) cb(result);
 	}
 	onDied (cb) {
 		if (this.state === Dealer.State.DIED) return cb();
@@ -93,7 +90,14 @@ class Dealer {
 			this.state = Dealer.State.DYING;
 		}
 	}
+	get working () {
+		return this.total - this.done;
+	}
+	get available () {
+		return this.constructor.Limit <= 0 || this.working <= this.constructor.Limit;
+	}
 	static Limit = 10;
+	static Initial = 0;
 	static AveWeight = 2;
 	static LastWeight = 1;
 }
