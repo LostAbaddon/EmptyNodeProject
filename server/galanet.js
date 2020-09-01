@@ -9,14 +9,15 @@ const Shakehand = _('Message.Shakehand');
 const Logger = new (_("Utils.Logger"))('Galanet');
 var ResponsorManager;
 
+const ReshakeInterval = 1000 * 60; // 每过一分钟自动重连一次
 const AvailableSource = [ 'tcp', 'udp', 'http' ];
 const Config = {
 	prefix: '',
-	// nodes: [],
 	services: []
 }
 const Pending = [];
 const Reshakings = new Map();
+var TimerShaking = null;
 
 class RichAddress extends Dealer {
 	#name = '';
@@ -376,17 +377,6 @@ class UserPool extends DealerPool {
 		});
 		return count;
 	}
-
-	showAll () {
-		console.log('=============== Show All ===============');
-		console.log(this.waitingConns.map(c => '        ----> ' + c.fullname).join('\n'));
-		this.forEach(user => {
-			console.log('    ' + user.name + '/' + (user.services === 'all' ? 'all' : user.services.join(':')) + '    P:' + user.power + '    T:' + user.working);
-			user.forEach(conn => {
-				console.log('        ====> ' + conn.fullname + '    P:' + conn.power + '    T:' + conn.working);
-			});
-		});
-	}
 }
 const UserManager = new UserPool();
 
@@ -437,6 +427,10 @@ const setConfig = async (cfg, callback) => {
 	UserManager.addMember(local);
 	UserManager.localUser = local;
 	UserManager.localConn = conn;
+
+	TimerShaking = setInterval(() => {
+		UserManager.shakehand();
+	}, ReshakeInterval);
 
 	callback();
 };
@@ -557,6 +551,9 @@ const launchTask = (responsor, param, query, url, data, method, source, ip, port
 			Logger.error(conn.name + ' error(' + result.code + '): ' + result.message);
 		}
 	}
+	else {
+		conn.connFail = 0;
+	}
 
 	if (!!callback) callback(result);
 	res(result);
@@ -652,7 +649,10 @@ const removeNode = node => {
 const getNodeInfo = () => {
 	return global.PersonCard.toString();
 };
-const shutdownAll = () => new Promise(async res => {
+const shutdown = all => new Promise(async res => {
+	clearInterval(TimerShaking);
+	if (!all) return res(0);
+
 	var list = [];
 	UserManager.forEach(user => {
 		if (user.name === 'local') return;
@@ -836,7 +836,7 @@ module.exports = {
 	launch: launchTask,
 	getUsage,
 	getNodeInfo,
-	shutdownAll,
+	shutdown,
 	get availableServices () {
 		return Config.services;
 	},

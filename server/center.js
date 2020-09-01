@@ -43,12 +43,13 @@ process.on('console::network::removeNode', (node, event, callback) => {
 process.on('console::shutdown', async (isAll, event, callback) => {
 	var msg = '';
 	if (isAll) {
-		let count = await Galanet.shutdownAll();
+		let count = await Galanet.shutdown(true);
 		msg = '已通知 ' + count + ' 个集群友机离线';
 		Logger.log(msg);
 		msg = '已离线，并' + msg;
 	}
 	else {
+		await Galanet.shutdown(false);
 		msg = '已离线';
 	}
 	setTimeout(() => {
