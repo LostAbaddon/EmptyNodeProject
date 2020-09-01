@@ -398,6 +398,14 @@ const setConfig = async (cfg, callback) => {
 	if (!!cfg.api?.services) {
 		Config.services.push(...cfg.api.services);
 	}
+	if (Number.is(cfg.concurrence)) {
+		RichAddress.Limit = cfg.concurrence;
+		UserNode.Limit = cfg.concurrence;
+	}
+	else if (Number.is(cfg.concurrence?.cluster)) {
+		RichAddress.Limit = cfg.concurrence.cluster;
+		UserNode.Limit = cfg.concurrence.cluster;
+	}
 	ResponsorManager.load(Path.join(__dirname, 'insider'), false);
 
 	if (isSlaver) return callback();

@@ -26,6 +26,8 @@
 	-	支持 Http、TCP、UDP 三种方式进行节点通讯
 	-	支持纯网关代理模式
 	-	支持等待任务池
+	-	公钥匹配的ID管理模式，并支持加密通讯（可生成公私钥对并读取，但需自己调用加密模块）
+	-	采用自研 Quark 数据结构与 Atom 数据类进行通讯
 5.	支持控制台响应
 	-	查看本地各进程、集群中各节点的负载情况（查看命令：console stat usage、console stat cluster）
 	-	增加、移除 Galanet 节点（增删命令：console network --add xxx、console network --remove xxx）
@@ -115,11 +117,9 @@ Galanet 是内网系统，节点之间彼此信任；Ising 是外网系统，通
 
 ## 计划
 
--	主分支：增加用户身份信息（ID、公钥、私钥）
--	主分支：将Galanet原本以multiaddress为基础的通讯改为以ID为基础的通讯模块 (working)
--	主分支：增加广播、窄播、特定节点播放以及加密通讯 (working)
--	主分支：使用序列化手段做进程间通讯即节点间通讯 (working)
+-	主分支：使用DealerPool模式调度业务进程 (working)
 -	主分支：更好的线程管理 (working)
+-	主分支：增加广播、窄播、特定节点播放以及加密通讯 (working)
 -	withDB分支：SCT增加空值检测机制以防止缓存穿透攻击 (working)
 -	withDB分支：SCT增加业务队列，避免缓存击穿和雪崩 (working)
 -	withDB分支：SCT增加缓存预备锁，避免缓存击穿和雪崩 (working)
