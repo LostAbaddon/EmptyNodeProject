@@ -471,6 +471,7 @@ const launchResponsor = (responsor, param, query, url, data, method, source, ip,
 
 	var result;
 	if (url.substr(0, 1) !== '/') url = '/' + url;
+	param = param || {};
 	var sender = (!!param.originSource || !!param.originHost + !!param.originPort)
 		? (param.originSource + '/' + param.originHost + '/' + param.originPort)
 		: (source + '/' + ip + '/' + port), sendInfo = method + ':' + url;

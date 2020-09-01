@@ -141,16 +141,19 @@ class UserNode extends Dealer {
 		if (!has) this.#pool.addMember(conn);
 	}
 	removeConn (conn) {
-		if (this.state === Dealer.State.DYING || this.state === Dealer.State.DIED) return;
+		if (this.state === Dealer.State.DYING || this.state === Dealer.State.DIED) return 0;
 
 		if (String.is(conn)) conn = RichAddress.parse(conn);
-		else if (!(conn instanceof RichAddress)) return;
-		if (!conn) return;
+		else if (!(conn instanceof RichAddress)) return 0;
+		if (!conn) return 0;
 
-		var target = this.#pool.filter(cn => cn.equal(conn));
-		if (target.length === 0) return;
-		target = target[0];
-		this.#pool.removeMember(target);
+		var target = [];
+		this.#pool.forEach(cn => {
+			if (cn.equal(conn)) target.push(cn);
+		});
+		if (target.length === 0) return 0;
+		target.forEach(t => this.#pool.removeMember(t));
+		return target.length;
 	}
 	forEach (cb) {
 		if (this.state === Dealer.State.DYING || this.state === Dealer.State.DIED) return;
@@ -283,10 +286,19 @@ class UserPool extends DealerPool {
 		}
 	}
 	removeConn (conn) {
-		if (this.waitingConns.includes(conn)) this.waitingConns.remove(conn);
-		this.forEach(m => {
-			m.removeConn(conn);
+		var deleted = 0;
+		var target = this.waitingConns.filter(c => {
+			if (c.fullname.indexOf(conn.fullname) === 0) {
+				deleted ++;
+				return true;
+			}
 		});
+		target.forEach(c => this.waitingConns.remove(c));
+
+		this.forEach(m => {
+			deleted += m.removeConn(conn);
+		});
+		return deleted;
 	}
 	pickConn (url) {
 		var list = [];
@@ -604,51 +616,28 @@ const httpClient = (host, port, method, path, param, callback) => new Promise((r
 });
 
 const addNode = async node => {
-	var info = RichAddress.parse(node);
-	if (!info) {
+	var conn = RichAddress.parse(node);
+	if (!conn || conn.isEmpty) {
 		return [null, new Errors.GalanetError.UnavailableNodeAddress()];
 	}
-	var last = Config.nodes.filter(node => node.name === info.name);
-	if (last.length > 0) {
-		last = last[0];
-		if (info.filter.length === 0) last.filter = [];
-		else {
-			info.filter.forEach(f => {
-				if (!last.filter.includes(f)) last.filter.push(f);
-			});
-		}
-		if (last.available) return ['节点注册服务已更新'];
-		let err = await connectNode(last);
-		if (!!err) {
-			return [null, err];
-		}
-		else {
-			return ['节点注册服务已更新，并握手成功'];
-		}
-	}
-	else {
-		Config.nodes.push(info);
-		let err = await connectNode(info);
-		if (!!err) {
-			return [null, err];
-		}
-		else {
-			return ['节点已添加，并握手成功'];
-		}
-	}
+
+	UserManager.addConn(conn);
+	UserManager.shakehand();
+
+	return ['已成功添加节点'];
 };
 const removeNode = node => {
-	var info = RichAddress.parse(node);
-	if (!info) {
+	var conn = RichAddress.parse(node);
+	if (!conn || conn.isEmpty) {
 		return [null, new Errors.GalanetError.UnavailableNodeAddress()];
 	}
-	var last = Config.nodes.filter(node => node.name === info.name);
-	if (last.length === 0) {
+
+	var count = UserManager.removeConn(conn);
+	if (count === 0) {
 		return [null, new Errors.GalanetError.NoSuchNode(info.name)];
 	}
 	else {
-		Config.nodes.remove(last[0]);
-		return ['删除节点成功'];
+		return ['共删除 ' + count + ' 个节点'];
 	}
 };
 
@@ -656,14 +645,25 @@ const getNodeInfo = () => {
 	return global.PersonCard.toString();
 };
 const shutdownAll = () => new Promise(async res => {
-	if (Config.nodes.length === 0) return res(0);
-	var told = 0;
-	await Promise.all(Config.nodes.map(async node => {
-		if (!node.available) return;
-		await sendRequest(node, 'put', '/galanet/shutdown');
-		told ++;
+	var list = [];
+	UserManager.forEach(user => {
+		if (user.name === 'local') return;
+		user.forEach(conn => {
+			if (!conn.connected || conn.isEmpty) return;
+			list.push(conn);
+		});
+	});
+	if (list.length === 0) return res(0);
+
+	await Promise.all(list.map(async conn => {
+		try {
+			await sendRequest(conn, 'put', '/galanet/shutdown');
+		}
+		catch (err) {
+			Logger.warn("通知集群友机关闭出错：" + err.message);
+		}
 	}));
-	res(told);
+	res(list.length);
 });
 
 const sendRequest = async (node, method, path, message) => {
