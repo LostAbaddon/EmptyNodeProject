@@ -1,4 +1,7 @@
-var IDSet = [Math.floor(Math.range(256)), Math.floor(Math.range(256)), Math.floor(Math.range(256))];
+const Quark = require('./quark');
+const Atom = require('./atom');
+
+const IDSet = [Math.floor(Math.range(256)), Math.floor(Math.range(256)), Math.floor(Math.range(256))];
 const IDChars = ('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz=+').split('');
 
 const newShortID = () => {
@@ -78,3 +81,63 @@ _('Message.newShortID', newShortID);
 _('Message.newLongID', newLongID);
 _('Message.packageMessage', packageMessage);
 _('Message.unpackMessage', unpackMessage);
+
+const QuarkShakehand = new Quark(2, "shakehand", {
+	id: "bytes|34",
+	pubkey: "bytes|270",
+	services: "[string]",
+});
+class Shakehand extends Atom('shakehand') {
+	id = '';
+	pubkey = '';
+	services = [];
+	constructor (id, pubkey, services) {
+		super();
+
+		if (id instanceof Uint8Array) id = id.toBase64();
+		else if (id instanceof Buffer) id = id.toString('base64');
+		this.id = id;
+
+		if (pubkey instanceof Uint8Array) pubkey = pubkey.toBase64();
+		else if (pubkey instanceof Buffer) pubkey = pubkey.toString('base64');
+		this.pubkey = pubkey;
+
+		if (!!services) this.services.push(...services);
+	}
+	toString () {
+		var buf = this.toData();
+		if (buf instanceof Uint8Array) return buf.toBase64();
+		else return buf.toString('base64');
+	}
+	toJSON (withPackerID = false) {
+		var json = {};
+		if (withPackerID) json.packerID = this.packerID;
+		json.id = this.id;
+		json.pubkey = this.pubkey;
+		json.services = [...this.services];
+		return json;
+	}
+	toData (withPrefix = false) {
+		var json = {};
+		json.packerID = this.packerID;
+		json.id = Buffer.from(this.id, 'base64');
+		json.pubkey = Buffer.from(this.pubkey, 'base64');
+		json.services = [...this.services];
+		return Shakehand.structure.pack(json, withPrefix);
+	}
+	toBuffer () {
+		return this.toData().toBuffer();
+	}
+	get available () {
+		return this.id.length > 0;
+	}
+	static fromJSON (json) {
+		return new Shakehand(json.id, json.pubkey, json.services);
+	}
+	static fromString (str) {
+		var buf = Buffer.from(str, 'base64');
+		return Shakehand.fromData(buf);
+	}
+}
+Atom.register('shakehand', Shakehand);
+_('Message.Shakehand', Shakehand);

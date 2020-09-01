@@ -3,6 +3,7 @@ const FSP = require('fs').promises;
 const Crypto = require('../kernel/crypto');
 const MultiHash = require('../kernel/multihash');
 const newLongID = _('Message.newLongID');
+const Shakehand = _('Message.Shakehand');
 const Logger = new (_("Utils.Logger"))('Personel');
 
 const CryptoType = 'rsa';
@@ -49,6 +50,7 @@ const init = async cfg => {
 	global.Personel.id = personel.id;
 	global.Personel.publicKey = personel.publicKey;
 	global.Personel.privateKey = personel.privateKey;
+	global.PersonCard = (new Shakehand(personel.id, personel.publicKey, cfg.api.services));
 };
 const createPersonel = () => {
 	var info = {

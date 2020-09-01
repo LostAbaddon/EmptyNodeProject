@@ -2,10 +2,10 @@
 
 空 Node.JS 项目。
 
-这里包含基础 Node.JS 代码库，可用于 Web（含 WebSocket）、TCP、UDP、Socket 的连接，支持多节点、多进程与多线程。
+这里包含基础 Node.JS 代码库，可用于 Web（含 WebSocket）、TCP、UDP、Socket 的连接，支持多节点、多进程与多线程。withDB 分支更支持 MySQL、Redis、SimpleCachedTable 等基础功能。
 
 -	作者：Lostabaddon
--	版本：0.1.8
+-	版本：0.2.0
 
 ## 功能
 
@@ -115,11 +115,14 @@ Galanet 是内网系统，节点之间彼此信任；Ising 是外网系统，通
 
 ## 计划
 
--	主分支：增加用户身份信息（ID、公钥、私钥） (working)
+-	主分支：增加用户身份信息（ID、公钥、私钥）
 -	主分支：将Galanet原本以multiaddress为基础的通讯改为以ID为基础的通讯模块 (working)
 -	主分支：增加广播、窄播、特定节点播放以及加密通讯 (working)
 -	主分支：使用序列化手段做进程间通讯即节点间通讯 (working)
 -	主分支：更好的线程管理 (working)
+-	withDB分支：SCT增加空值检测机制以防止缓存穿透攻击 (working)
+-	withDB分支：SCT增加业务队列，避免缓存击穿和雪崩 (working)
+-	withDB分支：SCT增加缓存预备锁，避免缓存击穿和雪崩 (working)
 -	主分支：增加 Ising 协议，用于分布式共识
 -	主分支：支持根据任务类型进行多节点任务调配，而非统一任务调配
 -	主分支：多节点数据用socket中转而非读取后写出到端

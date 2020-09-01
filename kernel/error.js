@@ -56,13 +56,17 @@ Errors.GalanetError.NoSuchNode = new BlackHole("当前集群中无指定节点",
 Errors.GalanetError.Unauthorized = new BlackHole("无权限调用本接口", "GLN-00008", "Unauthorized");
 
 Errors.Quark = {};
-Errors.Quark.DefaultPackerError = new BlackHole("不可用默认打包器", "QK-000001", "DefaultPackerError");
-Errors.Quark.ConflictPackerError = new BlackHole("Quark打包器冲突", "QK-000002", "ConflictPackerError");
-Errors.Quark.ConflictPrefixError = new BlackHole("数据类型前缀冲突", "QK-000003", "ConflictPrefixError");
-Errors.Quark.PackerNotFoundError = new BlackHole("指定的打包器不存在", "QK-000004", "PackerNotFoundError");
-Errors.Quark.ParseElementError = new BlackHole("解析Quark轻数据错误", "QK-000011", "ParseElementError");
-Errors.Quark.ParseFixLengthArrayError = new BlackHole("解析Quark固长数组错误", "QK-000012", "ParseFixLengthArrayError");
-Errors.Quark.ParseVarLengthArrayError = new BlackHole("解析Quark变长数组错误", "QK-000013", "ParseVarLengthArrayError");
+Errors.Quark.DefaultPackerError = new BlackHole("不可用默认打包器", "QRK-000001", "DefaultPackerError");
+Errors.Quark.ConflictPackerError = new BlackHole("Quark打包器冲突", "QRK-000002", "ConflictPackerError");
+Errors.Quark.ConflictPrefixError = new BlackHole("数据类型前缀冲突", "QRK-000003", "ConflictPrefixError");
+Errors.Quark.PackerNotFoundError = new BlackHole("指定的打包器不存在", "QRK-000004", "PackerNotFoundError");
+Errors.Quark.ParseElementError = new BlackHole("解析Quark轻数据错误", "QRK-000011", "ParseElementError");
+Errors.Quark.ParseFixLengthArrayError = new BlackHole("解析Quark固长数组错误", "QRK-000012", "ParseFixLengthArrayError");
+Errors.Quark.ParseVarLengthArrayError = new BlackHole("解析Quark变长数组错误", "QRK-000013", "ParseVarLengthArrayError");
+
+Errors.Dealer = {};
+Errors.Dealer.DealerNotAvailable = new BlackHole("Dealer当前不可用", "DLR-000001", "DealerNotAvailable");
+Errors.Dealer.DealerDied = new BlackHole("Dealer被强制关闭", "DLR-000002", "DealerDied");
 
 global.BlackHole = BlackHole;
 global.Errors = Errors;

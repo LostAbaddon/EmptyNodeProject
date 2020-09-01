@@ -139,7 +139,11 @@ const Atom = (name, type, proto) => {
 			return obj;
 		}
 		static fromData (data, hasPrefix = false) {
-			var origin = data.copy();
+			var origin;
+			if (data instanceof Buffer) origin = (new Uint8Array(data)).copy();
+			else if (data instanceof Uint8Array) origin = data.copy();
+			else return [null, data];
+
 			var [json, left] = quark.unpack(data, hasPrefix);
 			if (json === null || Object.keys(json).length === 0) return [null, origin];
 			var obj;

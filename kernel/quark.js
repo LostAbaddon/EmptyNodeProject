@@ -471,25 +471,24 @@ const BasicTypes = {
 	},
 	"bytes": {
 		pack: (obj, len = 0) => {
-			if (!obj || !obj.buffer) return new Uint8Array();
-			var data = new Uint8Array(obj.buffer);
+			if (!obj) return new Uint8Array();
 			var result;
 			if (len === 0) {
-				length = data.byteLength;
+				length = obj.byteLength;
 				let prefix = encodeLength(length);
 				let offset = prefix.byteLength;
 				len = length + offset;
 				result = new Uint8Array(len);
 				for (let i = 0; i < offset; i ++) result[i] = prefix[i];
 				for (let i = 0; i < length; i ++) {
-					result[i + offset] = data[i];
+					result[i + offset] = obj[i];
 				}
 			} else if (len < 0) {
-				result = new Uint8Array(data);
+				result = new Uint8Array(obj);
 			} else {
 				result = new Uint8Array(len);
 				for (let i = 0; i < len; i ++) {
-					result[i] = data[i];
+					result[i] = obj[i];
 				}
 			}
 			return result;

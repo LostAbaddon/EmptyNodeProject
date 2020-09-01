@@ -5,15 +5,19 @@ require("../core");
 loadall(__dirname, "../kernel", false);
 const ResponsorManager = require('./responser');
 const Galanet = require('./galanet');
+const Shakehand = _('Message.Shakehand');
 const Logger = new (_("Utils.Logger"))('SubProcess');
 
 global.isSlaver = true;
-const Config = { path: '' };
+const Config = { path: '', services: [] };
 
 const setConfig = async cfg => {
 	if (!!cfg.api?.local) {
 		Config.path = cfg.api.local;
 		await ResponsorManager.load(Path.join(process.cwd(), Config.path));
+	}
+	if (Array.is(cfg.api?.services)) {
+		Config.services.push(...cfg.api.services);
 	}
 	ResponsorManager.loadProcessor(cfg);
 	await Galanet.setConfig(cfg);
@@ -80,10 +84,11 @@ const doTask = async (tid, target, data) => {
 	});
 };
 
-process.on('message', msg => {
+process.on('message', async msg => {
 	if (msg.event === 'initial') {
+		await setConfig(msg.data);
 		global.Personel = msg.personel;
-		setConfig(msg.data);
+		global.PersonCard = (new Shakehand(msg.personel.id, msg.personel.publicKey, Config.services));
 	}
 	else if (msg.event === 'task') {
 		doTask(msg.id, msg.responsor, msg.data);

@@ -36,6 +36,10 @@ Array.prototype.remove = function (obj) {
 	this.splice(index, 1);
 	return this;
 };
+Array.prototype.clear = function (obj) {
+	this.splice(0, this.length);
+	return this;
+};
 Array.prototype.translate = function (offset) {
 	var c = this.copy();
 	if (isNaN(offset)) return c;
@@ -100,6 +104,7 @@ Object.defineProperty(Array.prototype, 'last', {
 Object.defineProperty(Array.prototype, 'copy', { enumerable: false });
 Object.defineProperty(Array.prototype, 'duplicate', { enumerable: false });
 Object.defineProperty(Array.prototype, 'remove', { enumerable: false });
+Object.defineProperty(Array.prototype, 'clear', { enumerable: false });
 Object.defineProperty(Array.prototype, 'randomize', { enumerable: false });
 Object.defineProperty(Array.prototype, 'translate', { enumerable: false });
 Object.defineProperty(Array.prototype, 'query', { enumerable: false });
@@ -144,7 +149,7 @@ if (global._env === "node") {
 	Uint8Array.fromString = (str, type='utf8') => Uint8Array.fromBuffer(Buffer.from(str, type));
 	Uint8Array.fromBase64 = base64 => {
 		var buf = Buffer.from(base64, 'base64');
-		return Uint8Array.toBuffer(buf);
+		return Uint8Array.fromBuffer(buf);
 	}
 	Uint8Array.fromBuffer = buffer => new Uint8Array(buffer);
 	Uint16Array.fromBuffer = buffer => new Uint16Array(buffer);
