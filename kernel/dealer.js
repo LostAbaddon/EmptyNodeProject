@@ -14,7 +14,7 @@ class Dealer {
 		this.power = this.constructor.Initial;
 	}
 	start (task, callback) {
-		if (this.state === Dealer.State.DYING || this.state === Dealer.State.DIED) {
+		if (!this.isOK) {
 			let err = new Errors.Dealer.DealerNotAvailable();
 			if (!!callback) callback({
 				ok: false,
@@ -66,14 +66,21 @@ class Dealer {
 		else this.energy = this.timespent / (this.done - this.failed) * (this.total + this.failed) / this.total;
 		if (success) this.energy = (this.energy * this.constructor.AveWeight + timespent * this.constructor.LastWeight) / (this.constructor.AveWeight + this.constructor.LastWeight);
 		this.power = this.energy * (this.working + 1);
+		var cb = this.#map.get(task);
+		if (!!cb) cb(result);
+
 		this.#map.delete(task);
 		if (this.working === 0) {
 			if (this.state === Dealer.State.DYING) this.#suicide();
-			else if (this.state !== Dealer.State.DIED) this.state = Dealer.State.IDLE;
+			else if (this.state !== Dealer.State.DIED) this.state = Dealer.State.READY;
 		}
-
-		var cb = this.#map.get(task);
-		if (!!cb) cb(result);
+	}
+	forEach (data) {
+		if (!this.isOK) return;
+		for (let [task, cb] of this.#map) {
+			if (!cb) continue;
+			cb(data);
+		}
 	}
 	onDied (cb) {
 		if (this.state === Dealer.State.DIED) return cb();
@@ -100,7 +107,14 @@ class Dealer {
 	get working () {
 		return this.total - this.done;
 	}
+	get isOK () {
+		if (this.state === DealerPool.State.IDLE) return false;
+		if (this.state === DealerPool.State.DYING) return false;
+		if (this.state === DealerPool.State.DIED) return false;
+		return true;
+	}
 	get available () {
+		if (this.state === Dealer.State.IDLE || this.state === Dealer.State.DYING || this.state === Dealer.State.DIED) return false;
 		return this.constructor.Limit <= 0 || this.working <= this.constructor.Limit;
 	}
 	static Limit = 10;
@@ -108,11 +122,11 @@ class Dealer {
 	static AveWeight = 2;
 	static LastWeight = 1;
 }
-Dealer.State = Symbol.set('IDLE', 'BUSY', 'DYING', 'DIED');
+Dealer.State = Symbol.set('IDLE', 'READY', 'BUSY', 'DYING', 'DIED');
 
 class DealerPool {
 	#dealerClass = Dealer;
-	#state = DealerPool.State.IDLE;
+	state = DealerPool.State.IDLE;
 	#members = [];
 	#pending = [];
 	#deads = [];
@@ -120,7 +134,7 @@ class DealerPool {
 		this.#dealerClass = dealerClass;
 	}
 	addMember (...args) {
-		if (this.#state === DealerPool.State.DYING || this.#state === DealerPool.State.DIED) return;
+		if (this.state === DealerPool.State.DYING || this.state === DealerPool.State.DIED) return;
 
 		var member;
 		if ((args.length === 1) && (args[0] instanceof this.#dealerClass)) member = args[0];
@@ -129,14 +143,14 @@ class DealerPool {
 		return member;
 	}
 	removeMember (member) {
-		if (this.#state === DealerPool.State.DYING || this.#state === DealerPool.State.DIED) return;
+		if (this.state === DealerPool.State.DYING || this.state === DealerPool.State.DIED) return;
 
 		member.suicide();
 		this.#members.remove(member);
 	}
-	addTask (task, callback) {
+	launchTask (task, callback) {
 		return new Promise(res => {
-			if (this.#state === DealerPool.State.DYING || this.#state === DealerPool.State.DIED) {
+			if (this.state === DealerPool.State.DYING || this.state === DealerPool.State.DIED) {
 				let err = new Errors.Dealer.DealerNotAvailable();
 				let result = {
 					ok: false,
@@ -146,13 +160,18 @@ class DealerPool {
 				if (!!callback) callback(result);
 				return res(result);
 			}
-			this.#state = DealerPool.State.BUSY;
 
-			var finished = false;
 			var scb = result => {
 				if (!!callback) callback(result);
 				res(result);
 			};
+			if (this.state === DealerPool.State.IDLE) {
+				this.#pending.push([task, scb]);
+				return;
+			}
+			this.state = DealerPool.State.BUSY;
+
+			var finished = false;
 			var cb = result => {
 				if (finished) return;
 				finished = true;
@@ -161,10 +180,11 @@ class DealerPool {
 
 				var available = this.#members.some(m => m.available);
 				if (available) {
-					this.addTask(...(this.#pending.shift()));
+					let job = this.#pending.shift();
+					if (!!job) this.launchTask(...job);
 				}
 				else {
-					this.#state = DealerPool.State.IDLE;
+					this.state = DealerPool.State.READY;
 				}
 			};
 
@@ -179,24 +199,36 @@ class DealerPool {
 			member.start(task, cb);
 		});
 	}
+	launchPendingTask () {
+		if (this.#pending.length === 0) return;
+		var available = this.#members.some(m => m.available);
+		while (available) {
+			this.launchTask(...(this.#pending.shift()));
+			if (this.#pending.length === 0) return;
+			available = this.#members.some(m => m.available);
+		}
+	}
 	forEach (cb) {
-		if (this.#state === DealerPool.State.DYING || this.#state === DealerPool.State.DIED) return;
+		if (!this.isOK) return;
 		this.#members.forEach(m => cb(m));
+	}
+	clear () {
+		this.#members.clear();
 	}
 	onDied (cb) {
 		if (this.state === DealerPool.State.DIED) return cb();
 		this.#deads.push(cb);
 	}
-	suicide () {
-		if (this.#state === DealerPool.State.DYING || this.#state === DealerPool.State.DIED) return;
-		this.#state = DealerPool.State.DYING;
+	suicide (err) {
+		if (this.state === DealerPool.State.DYING || this.state === DealerPool.State.DIED) return;
+		this.state = DealerPool.State.DYING;
 
 		var count = this.count;
 		this.#members.forEach(m => {
 			m.onDied(() => {
 				count --;
 				if (count === 0) {
-					this.#state = DealerPool.State.DIED;
+					this.state = DealerPool.State.DIED;
 					let list = this.#deads.copy();
 					this.#deads.clear();
 					this.#deads = undefined;
@@ -210,7 +242,7 @@ class DealerPool {
 		});
 
 		if (this.pending > 0) {
-			let err = new Errors.Dealer.DealerDied();
+			err = err || new Errors.Dealer.DealerDied();
 			let result = {
 				ok: false,
 				code: err.code,
@@ -220,17 +252,22 @@ class DealerPool {
 			this.#pending.clear();
 		}
 	}
-	get state () {
-		return this.#state;
+	get isOK () {
+		if (this.state === DealerPool.State.IDLE) return false;
+		if (this.state === DealerPool.State.DYING) return false;
+		if (this.state === DealerPool.State.DIED) return false;
+		return true;
 	}
 	get pending () {
+		if (this.state === DealerPool.State.DYING || this.state === DealerPool.State.DIED) return 0;
 		return this.#pending.length;
 	}
 	get count () {
+		if (this.state === DealerPool.State.DYING || this.state === DealerPool.State.DIED) return 0;
 		return this.#members.length;
 	}
 }
-DealerPool.State = Symbol.set('IDLE', 'BUSY', 'DYING', 'DIED');
+DealerPool.State = Dealer.State
 
 module.exports = {
 	DealerPool,

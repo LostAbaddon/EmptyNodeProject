@@ -14,7 +14,7 @@ const AvailableSource = [ 'tcp', 'udp', 'http' ];
 const Config = {
 	prefix: '',
 	services: []
-}
+};
 const Pending = [];
 const Reshakings = new Map();
 var TimerShaking = null;
@@ -28,6 +28,7 @@ class RichAddress extends Dealer {
 	filter = new Set();  // 本地转发哪些服务
 	constructor (protocol, host, port, filter) {
 		super();
+		this.state = Dealer.State.READY;
 		if (!host) {
 			if (String.is(protocol)) {
 				protocol = RichAddress.parse(protocol);
@@ -124,6 +125,8 @@ class UserNode extends Dealer {
 	#pool = new DealerPool(RichAddress);
 	constructor (name) {
 		super();
+		this.state = Dealer.State.READY;
+		this.#pool.state = DealerPool.State.READY;
 		if (!!name) this.name = name;
 	}
 	addConn (conn) {
@@ -263,6 +266,7 @@ class UserPool extends DealerPool {
 	waitingConns = [];
 	constructor () {
 		super(UserNode);
+		this.state = DealerPool.State.READY;
 	}
 	addConn (name, conn) {
 		if (!conn) {
@@ -448,7 +452,7 @@ const reshakehand = ip => {
 		UserManager.shakehand(ip);
 	}, 1000));
 };
-const checkRequester = ip => UserManager.hasHost(ip);
+const checkIP = ip => UserManager.hasHost(ip);
 const checkService = url => {
 	if (!Config.services || Config.services.length === 0) return true;
 	url = url.split('/').filter(f => f.trim().length > 0)[0];
@@ -853,7 +857,7 @@ module.exports = {
 	removeNode,
 	shakehand: ip => UserManager.shakehand(ip),
 	reshakehand,
-	check: checkRequester,
+	check: checkIP,
 	checkService,
 	launch: launchTask,
 	getUsage,

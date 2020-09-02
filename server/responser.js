@@ -5,9 +5,9 @@ const Watcher = require('../kernel/watcher');
 const Personel = require('./personel');
 const newLongID = _('Message.newLongID');
 const ModuleManager = _('Utils.ModuleManager');
+const { Dealer, DealerPool } = require('../kernel/dealer');
 const Logger = new (_("Utils.Logger"))('Responsor');
-const SubProcessState = Symbol.setSymbols('IDLE', 'WAITING', 'WORKING', 'DYING', 'DIED');
-const HotfixModuleExtName = [ 'js', 'mjs', 'cjs', 'json' ];
+const HotUpModuleExtName = [ 'js', 'mjs', 'cjs', 'json' ];
 const NonAPIModulePrefix = '_';
 
 global.isDelegator = false;
@@ -18,7 +18,7 @@ global.ResponsorList = [];
 
 const Config = {
 	process: 1,
-	concurrence: 0,
+	concurrence: 10,
 	services: [],
 	preprocessor: [],
 	postprocessor: [],
@@ -31,157 +31,135 @@ const TaskInfo = {
 	energy: 0,
 	power: 0
 };
-const Slavers = [];
-const PendingTasks = [];
-
+const SubProcessState = Symbol.setSymbols('IDLE', 'WAITING', 'WORKING', 'DYING', 'DIED');
 var MainProcessState = SubProcessState.WORKING;
+HotUpModuleExtName.forEach((ext, i) => HotUpModuleExtName[i] = '.' + HotUpModuleExtName[i]);
 
-HotfixModuleExtName.forEach((ext, i) => HotfixModuleExtName[i] = '.' + HotfixModuleExtName[i]);
+class TxWorker extends Dealer {
+	#id = 0;
+	#map = new Map();
+	#worker = null;
+	constructor (cfg, callback) {
+		super();
 
-const forkChildren = (cfg, callback) => {
-	var worker = Process.fork(Path.join(__dirname, './subprocess.js'));
-	worker.state = SubProcessState.IDLE;
-	worker.taskQueue = {};
-	worker.taskCount = 0;
-	worker.taskDone = 0;
-	worker.taskTimespent = 0;
-	worker.taskEnergy = 1;
-	worker.taskPower = 0;
-	worker.dyingMessagers = [];
-	worker.launchTask = task => {
-		worker.state = SubProcessState.WORKING;
-		worker.taskQueue[task.tid] = task;
-		worker.taskCount ++;
-		worker.taskPower = worker.taskEnergy * (1 + worker.taskCount - worker.taskDone);
-		worker.send({
+		var worker = Process.fork(Path.join(__dirname, './subprocess.js'));
+		this.#id = worker.pid;
+		worker.on('message', msg => {
+			if (msg.event === 'online') {
+				worker.send({
+					event: 'initial',
+					data: cfg,
+					personel: global.Personel
+				});
+			}
+			else if (msg.event === 'ready') {
+				if (this.state === Dealer.State.IDLE) {
+					Logger.info('Slaver Ready: ' + this.#id);
+					this.state = Dealer.State.READY;
+					if (!!callback) callback();
+				}
+			}
+			else if (msg.event === 'jobdone') {
+				if (this.state === Dealer.State.DIED) return;
+
+				Logger.log('Slaver-' + worker.pid + ' Job DONE! (' + this.power + ' | ' + this.total + ' / ' + this.done + ' / ' + this.timespent + ')');
+
+				if (this.state === Dealer.State.DYING) {
+					worker.send({ event: 'suicide' });
+				}
+
+				let task = this.#map.get(msg.id);
+				if (!task) return;
+				this.finish(task, msg.result);
+			}
+			else if (msg.event === 'command') {
+				process.emit(msg.action, msg.data);
+			}
+			else if (msg.event === 'log') {
+				Logger.appendRecord(msg.data);
+			}
+			else if (msg.event === 'extinct') {
+				extinctSlavers();
+			}
+			else {
+				Logger.log('MainProcess::Message', msg);
+			}
+		});
+		worker.on('exit', code => {
+			Logger.info('Slaver Died: ' + this.#id);
+			WorkerPool.removeMember(this);
+
+			if (MainProcessState === SubProcessState.DIED && WorkerPool.count === 0) {
+				destroyMonde();
+			}
+			else if (MainProcessState !== SubProcessState.DIED && MainProcessState !== SubProcessState.DYING) {
+				forkChildren(cfg);
+			}
+		});
+
+		this.#worker = worker;
+	}
+	start (task, callback) {
+		this.#map.set(task.tid, task);
+		super.start(task, callback);
+
+		this.#worker.send({
 			event: 'task',
 			id: task.tid,
 			responsor: task.responsor,
 			data: task.data
 		});
-	};
-	worker.suicide = () => {
-		worker.state = SubProcessState.DIED;
-		worker.send({ event: 'suicide' });
-	};
-	worker.dying = () => new Promise(res => {
-		if (worker.state === SubProcessState.IDLE || worker.state === SubProcessState.WAITING) {
-			worker.state = SubProcessState.DYING;
-			worker.dyingMessagers.push(res);
-			worker.send({ event: 'suicide' });
-		}
-		else if (worker.state === SubProcessState.WORKING) {
-			worker.state = SubProcessState.DYING;
-			worker.dyingMessagers.push(res);
-		}
-		else {
-			res();
-		}
-	});
+	}
+	finish (task, result) {
+		super.finish(task, result);
+		this.#map.delete(task.tid);
+	}
+	send (msg) {
+		if (this.state === Dealer.State.DIED || !this.#worker) return;
+		this.#worker.send(msg);
+	}
+	suicide () {
+		if (this.state === Dealer.State.DIED) return;
 
-	worker.on('message', msg => {
-		if (msg.event === 'online') {
-			worker.send({
-				event: 'initial',
-				data: cfg,
-				personel: global.Personel
-			});
-		}
-		else if (msg.event === 'ready') {
-			worker.state = SubProcessState.WAITING;
-			if (PendingTasks.length > 0) {
-				let task = PendingTasks.shift();
-				worker.launchTask(task);
-			}
-			Logger.info('Slaver Ready: ' + worker.pid);
-			callback();
-		}
-		else if (msg.event === 'jobdone') {
-			if (worker.state === SubProcessState.DIED) return;
+		this.onDied(() => {
+			this.#map.clear();
+			this.#map = undefined;
+		});
 
-			let info = worker.taskQueue[msg.id];
-			if (!info) return;
+		this.#worker.send({ event: 'suicide' });
 
-			let used = now() - info.stamp;
-			worker.taskDone ++;
-			worker.taskTimespent += used;
-			let average = worker.taskTimespent / worker.taskDone;
-			worker.taskEnergy = (average * 2 + used) / 3;
-			worker.taskPower = worker.taskEnergy * (1 + worker.taskCount - worker.taskDone);
-			delete worker.taskQueue[msg.id];
-
-			if (worker.state !== SubProcessState.DYING) {
-				worker.state = SubProcessState.WAITING;
-			}
-			Logger.log('Slaver-' + worker.pid + ' Job DONE! (' + worker.taskPower + ' | ' + worker.taskCount + ' / ' + worker.taskDone + ' / ' + worker.taskTimespent + ')');
-
-			if (PendingTasks.length > 0 && worker.taskCount - worker.taskDone <= Config.concurrence) {
-				let task = PendingTasks.shift();
-				worker.launchTask(task);
-			}
-
-			info.callback(msg.result);
-			if (worker.state === SubProcessState.DYING) {
-				worker.send({ event: 'suicide' });
-			}
-		}
-		else if (msg.event === 'command') {
-			process.emit(msg.action, msg.data);
-		}
-		else if (msg.event === 'log') {
-			Logger.appendRecord(msg.data);
-		}
-		else if (msg.event === 'extinct') {
-			extinctSlavers();
-		}
-		else {
-			Logger.log('MainProcess::Message', msg);
-		}
-	});
-	worker.on('exit', code => {
-		Logger.info('Slaver Died: ' + worker.pid);
-		Slavers.remove(worker);
-
-		var dying = worker.state === SubProcessState.DYING;
-		var died = worker.state === SubProcessState.DIED;
-		worker.state = SubProcessState.DIED;
 		var err = new Errors.RuntimeError.SubProcessBrokenDown();
-		for (let task in worker.taskQueue) {
-			task = worker.taskQueue[task];
-			if (!task) continue;
-			task.callback({
-				ok: false,
-				code: err.code,
-				message: err.message
-			});
-		}
-		delete worker.taskQueue;
-		delete worker.taskCount;
-		delete worker.taskDone;
-		delete worker.taskTimespent;
-		delete worker.taskPower;
+		this.forEach({
+			ok: false,
+			code: err.code,
+			message: err.message
+		});
 
-		if (dying) {
-			worker.dyingMessagers.forEach(res => res());
-			delete worker.dyingMessagers;
-		}
-		else {
-			if (!died) {
-				forkChildren();
-			}
-			else if (MainProcessState === SubProcessState.DIED && Slavers.length === 0) {
-				destroyMonde();
-			}
-		}
-	});
+		super.suicide();
+	}
+	get pid () {
+		return this.#id;
+	}
+	static Limit = 10;
+	static Initial = 10;
+}
+class TxPool extends DealerPool {
+	constructor () {
+		super(TxWorker);
+	}
+}
+const WorkerPool = new TxPool();
 
-	Slavers.push(worker);
+const forkChildren = (cfg, callback) => {
+	WorkerPool.addMember(new TxWorker(cfg, callback));
 };
 const launchWorkers = (cfg, callback) => new Promise(res => {
 	var total = Config.process, count = Config.process, init = false;
 	if (total < 1) {
+		WorkerPool.state = DealerPool.State.READY;
 		if (!!callback) callback();
 		res();
+		WorkerPool.launchPendingTask();
 		return;
 	}
 	for (let i = 0; i < total; i ++) {
@@ -190,8 +168,10 @@ const launchWorkers = (cfg, callback) => new Promise(res => {
 			count --;
 			if (count > 0) return;
 			init = true;
+			WorkerPool.state = DealerPool.State.READY;
 			if (!!callback) callback();
 			res();
+			WorkerPool.launchPendingTask();
 		});
 	}
 });
@@ -219,8 +199,8 @@ const loadProcessor = (list, modules) => {
 const broadcast = (msg, event) => {
 	if (!global.isMultiProcess) return 0;
 	var count = 0;
-	Slavers.forEach(worker => {
-		if (worker.state === SubProcessState.DYING || worker.state === SubProcessState.DIED) return;
+	WorkerPool.forEach(worker => {
+		if (worker.state === Dealer.State.DIED) return;
 		worker.send({
 			event: event || msg.event || 'message',
 			type: 'broadcast',
@@ -233,8 +213,8 @@ const broadcast = (msg, event) => {
 const narrowcast = (msg, event) => {
 	if (!global.isMultiProcess) return null;
 	var workers = [];
-	Slavers.forEach(worker => {
-		if (worker.state === SubProcessState.DYING || worker.state === SubProcessState.DIED) return;
+	WorkerPool.forEach(worker => {
+		if (worker.state === Dealer.State.DIED) return;
 		workers.push(worker);
 	});
 	if (workers.length === 0) return null;
@@ -253,7 +233,12 @@ const setConfig = async (cfg, callback) => {
 	if (Array.is(cfg.api.services)) Config.services.push(...cfg.api.services);
 	else if (String.is(cfg.api.services)) Config.services.push(cfg.api.services);
 	Config.options = cfg;
-	Config.concurrence = cfg.concurrence;
+	if (Number.is(cfg.concurrence)) {
+		TxWorker.Limit = cfg.concurrence;
+	}
+	else if (Number.is(cfg.concurrence?.process)) {
+		TxWorker.Limit = cfg.concurrence.process;
+	}
 
 	loadPrePostWidget(cfg);
 
@@ -282,7 +267,10 @@ const setConfig = async (cfg, callback) => {
 	actions.push(Personel.init(cfg));
 	actions.push(Galanet.setConfig(cfg));
 	await Promise.all(actions);
+
+	// 通知 Galanet 都准备好了，开始握手
 	Galanet.shakehand();
+
 	callback();
 };
 const setConcurrence = count => {
@@ -303,11 +291,16 @@ const setProcessCount = count => {
 const restartWorkers = async () => {
 	if (!isMultiProcess) return;
 	processStat = ProcessStat.INIT;
-	var workers = Slavers.map(w => w);
-	Slavers.splice(0, Slavers.length);
-	workers = workers.map(worker => worker.dying());
-	workers.push(launchWorkers(Config.options));
-	await Promise.all(workers);
+
+	var actions = [];
+	WorkerPool.forEach(worker => {
+		actions.push(worker.dying());
+	});
+	WorkerPool.clear();
+	actions.push(launchWorkers(Config.options));
+
+	await Promise.all(actions);
+
 	processStat = ProcessStat.READY;
 };
 
@@ -321,7 +314,7 @@ const loadPrePostWidget = cfg => {
 };
 const loadResponseFile = (path, filepath) => {
 	var low = filepath.toLowerCase();
-	if (!HotfixModuleExtName.some(ext => low.substring(low.length - ext.length, low.length) === ext)) return;
+	if (!HotUpModuleExtName.some(ext => low.substring(low.length - ext.length, low.length) === ext)) return;
 
 	var url = filepath.replace(path, '');
 	var parts = url.split(/[\/\\]+/).filter(f => f.length > 0);
@@ -581,26 +574,10 @@ const launchLocalResponsor = (responsor, param, query, url, data, method, source
 		tid: newLongID(),
 		responsor: responsor._url,
 		data: { param, query, url, data: {}, method, source, ip, port },
-		stamp: now(),
-		callback: res
+		stamp: now()
 	};
-
-	// 选进程
-	var worker = Slavers.filter(slaver => {
-		if (slaver.state === SubProcessState.WAITING) return true;
-		if (slaver.state === SubProcessState.WORKING) {
-			if (Config.concurrence < 1) return true; // 如果共线数小于1，表示不作限制
-			if (slaver.taskCount - slaver.taskDone > Config.concurrence) return false;
-			return true;
-		}
-		return false;
-	});
-	if (worker.length === 0) {
-		return PendingTasks.push(task);
-	}
-	worker.sort((pa, pb) => pa.taskPower - pb.taskPower);
-	worker = worker[0];
-	worker.launchTask(task);
+	var result = await WorkerPool.launchTask(task);
+	res(result);
 });
 
 const extinctSlavers = () => {
@@ -612,21 +589,14 @@ const extinctSlavers = () => {
 			destroyMonde();
 		}
 		else {
-			Slavers.forEach(worker => worker.suicide());
+			WorkerPool.suicide();
 		}
 	}
 };
 const destroyMonde = () => {
-	if (PendingTasks.length > 0) {
-		let err = new Errors.RuntimeError.MainProcessExited();
-		PendingTasks.forEach(task => {
-			task.callback({
-				ok: false,
-				code: err.code,
-				message: err.message
-			});
-		});
-	}
+	var err = new Errors.RuntimeError.MainProcessExited();
+	WorkerPool.suicide(err);
+
 	process.exit();
 };
 
@@ -636,18 +606,18 @@ const getUsage = () => {
 	result.isInGroup = Galanet.isInGroup;
 	result.processCount = Config.process < 1 ? 1 : Config.process;
 	result.concurrence = Config.concurrence;
-	result.pending = PendingTasks.length;
+	result.pending = WorkerPool.pending;
 	result.workers = [];
 	result.connections = Config.options.port;
 	if (isMultiProcess) {
-		Slavers.forEach(worker => {
+		WorkerPool.forEach(worker => {
 			var info = {
-				alive: !worker.killed,
-				total: worker.taskCount,
-				done: worker.taskDone,
-				spent: worker.taskTimespent,
-				energy: worker.taskEnergy,
-				power: worker.taskPower
+				alive: (worker.state !== Dealer.State.DYING && worker.state !== Dealer.State.DIED),
+				total: worker.total,
+				done: worker.done,
+				spent: worker.timespent,
+				energy: worker.energy,
+				power: worker.power
 			};
 			result.workers.push(info);
 		});
@@ -681,7 +651,7 @@ module.exports = {
 	refresh: restartWorkers,
 	getUsage,
 	get processCount () {
-		return Slavers.length;
+		return WorkerPool.count;
 	},
 	get preprocessor () {
 		return Config.preprocessor;
