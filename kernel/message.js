@@ -85,13 +85,15 @@ _('Message.unpackMessage', unpackMessage);
 const QuarkShakehand = new Quark(2, "shakehand", {
 	id: "bytes|34",
 	pubkey: "bytes|270",
+	delegator: "bool",
 	services: "[string]",
 });
 class Shakehand extends Atom('shakehand') {
 	id = '';
 	pubkey = '';
+	delegator = false,
 	services = [];
-	constructor (id, pubkey, services) {
+	constructor (id, pubkey, services, delegator=false) {
 		super();
 
 		if (id instanceof Uint8Array) id = id.toBase64();
@@ -102,6 +104,7 @@ class Shakehand extends Atom('shakehand') {
 		else if (pubkey instanceof Buffer) pubkey = pubkey.toString('base64');
 		this.pubkey = pubkey;
 
+		this.delegator = delegator;
 		if (!!services) this.services.push(...services);
 	}
 	toString () {
@@ -114,6 +117,7 @@ class Shakehand extends Atom('shakehand') {
 		if (withPackerID) json.packerID = this.packerID;
 		json.id = this.id;
 		json.pubkey = this.pubkey;
+		json.delegator = this.delegator;
 		json.services = [...this.services];
 		return json;
 	}
@@ -122,6 +126,7 @@ class Shakehand extends Atom('shakehand') {
 		json.packerID = this.packerID;
 		json.id = Buffer.from(this.id, 'base64');
 		json.pubkey = Buffer.from(this.pubkey, 'base64');
+		json.delegator = this.delegator;
 		json.services = [...this.services];
 		return Shakehand.structure.pack(json, withPrefix);
 	}
@@ -132,7 +137,7 @@ class Shakehand extends Atom('shakehand') {
 		return this.id.length > 0;
 	}
 	static fromJSON (json) {
-		return new Shakehand(json.id, json.pubkey, json.services);
+		return new Shakehand(json.id, json.pubkey, json.services, !!json.delegator);
 	}
 	static fromString (str) {
 		var buf = Buffer.from(str, 'base64');

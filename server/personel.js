@@ -50,7 +50,7 @@ const init = async cfg => {
 	global.Personel.id = personel.id;
 	global.Personel.publicKey = personel.publicKey;
 	global.Personel.privateKey = personel.privateKey;
-	global.PersonCard = (new Shakehand(personel.id, personel.publicKey, cfg.api.services));
+	global.PersonCard = (new Shakehand(personel.id, personel.publicKey, cfg.api.services, global.isDelegator));
 };
 const createPersonel = () => {
 	var info = {

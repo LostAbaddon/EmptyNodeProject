@@ -88,7 +88,7 @@ process.on('message', async msg => {
 	if (msg.event === 'initial') {
 		await setConfig(msg.data);
 		global.Personel = msg.personel;
-		global.PersonCard = (new Shakehand(msg.personel.id, msg.personel.publicKey, Config.services));
+		global.PersonCard = (new Shakehand(msg.personel.id, msg.personel.publicKey, Config.services, global.isDelegator));
 	}
 	else if (msg.event === 'task') {
 		doTask(msg.id, msg.responsor, msg.data);

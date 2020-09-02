@@ -119,6 +119,7 @@ class RichAddress extends Dealer {
 class UserNode extends Dealer {
 	name = "";
 	pubkey = "";
+	isDelegator = false;
 	#services = new Set(); // 对方接受的服务类型
 	#pool = new DealerPool(RichAddress);
 	constructor (name) {
@@ -313,6 +314,7 @@ class UserPool extends DealerPool {
 
 		// 选择自称可提供指定服务的节点
 		this.forEach(user => {
+			if (user.isDelegator) return;
 			if (user.matchService(service)) {
 				noMatch = false;
 				if (user.available) users.push(user);
@@ -550,10 +552,12 @@ const launchTask = (responsor, param, query, url, data, method, source, ip, port
 			Logger.error(conn.name + ' : 目标友机不再支持该服务 (' + url + ')');
 			let service = url.split('/').filter(u => u.length > 0)[0];
 			if (!!service && (node.services !== 'all')) node.removeService(service);
-			conn.connFail ++;
-			if (conn.connFail > 3) {
-				conn.connected = false;
-			}
+			await waitLoop();
+			result = await launchTask(responsor, param, query, url, data, method, source, ip, port);
+		}
+		else if (result.code === Errors.GalanetError.QuestDelegator.code) {
+			Logger.error(conn.name + ' : 目标友机是网关机');
+			node.isDelegator = true;
 			await waitLoop();
 			result = await launchTask(responsor, param, query, url, data, method, source, ip, port);
 		}
@@ -788,6 +792,7 @@ const connectNode = node => new Promise(res => {
 		if (!info.services || info.services.length === 0) user.addService('all');
 		else user.addService(info.services);
 		user.pubkey = info.pubkey;
+		user.isDelegator = !!info.delegator;
 		Logger.info('连接' + node.name + '成功！');
 		res();
 	});

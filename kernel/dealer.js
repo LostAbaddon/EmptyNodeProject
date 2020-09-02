@@ -34,6 +34,7 @@ class Dealer {
 			this.#map.set(task, ncb);
 			return;
 		}
+
 		task._starttime = now();
 		this.total ++;
 		this.power = this.energy * (this.working + 1);
@@ -53,11 +54,16 @@ class Dealer {
 			success = !!result;
 		}
 		this.done ++;
-		if (!success) this.failed ++;
-		var timespent = task._finishtime - task._starttime;
-		this.timespent += timespent;
-		this.energy = this.timespent / this.done * (this.total + this.failed) / this.total;
-		this.energy = (this.energy * this.constructor.AveWeight + timespent * this.constructor.LastWeight) / (this.constructor.AveWeight + this.constructor.LastWeight);
+		if (success) {
+			let timespent = task._finishtime - task._starttime;
+			this.timespent += timespent;
+		}
+		else {
+			this.failed ++;
+		}
+		if (this.done === this.failed) this.energy = this.constructor.Initial;
+		else this.energy = this.timespent / (this.done - this.failed) * (this.total + this.failed) / this.total;
+		if (success) this.energy = (this.energy * this.constructor.AveWeight + timespent * this.constructor.LastWeight) / (this.constructor.AveWeight + this.constructor.LastWeight);
 		this.power = this.energy * (this.working + 1);
 		this.#map.delete(task);
 		if (this.working === 0) {
