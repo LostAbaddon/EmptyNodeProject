@@ -561,6 +561,13 @@ const launchTask = (responsor, param, query, url, data, method, source, ip, port
 			await waitLoop();
 			result = await launchTask(responsor, param, query, url, data, method, source, ip, port);
 		}
+		else if (result.code === "ETIMEDOUT") {
+			Logger.error(conn.name + ' : 目标友机疑似离线');
+			conn.connFail = 3;
+			conn.connected = false;
+			await waitLoop();
+			result = await launchTask(responsor, param, query, url, data, method, source, ip, port);
+		}
 		else {
 			Logger.error(conn.name + ' error(' + result.code + '): ' + result.message);
 		}
