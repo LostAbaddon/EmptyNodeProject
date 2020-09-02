@@ -91,7 +91,7 @@ const QuarkShakehand = new Quark(2, "shakehand", {
 class Shakehand extends Atom('shakehand') {
 	id = '';
 	pubkey = '';
-	delegator = false,
+	delegator = false;
 	services = [];
 	constructor (id, pubkey, services, delegator=false) {
 		super();
