@@ -528,7 +528,7 @@ const launchTask = (responsor, param, query, url, data, method, source, ip, port
 	// 处理返回结果
 	if (!result.ok) {
 		if (result.code === Errors.GalanetError.NotFriendNode.code) {
-			Logger.error(conn.name + ' : not friend node (' + url + ')');
+			Logger.error(conn.name + ' : 本机不在目标友机集群序列中');
 			conn.connFail ++;
 			if (conn.connFail > 3) {
 				conn.connected = false;
@@ -537,7 +537,7 @@ const launchTask = (responsor, param, query, url, data, method, source, ip, port
 			result = await launchTask(responsor, param, query, url, data, method, source, ip, port);
 		}
 		else if (result.code === Errors.GalanetError.CannotService.code) {
-			Logger.error(conn.name + ' : cannot service (' + url + ')');
+			Logger.error(conn.name + ' : 目标友机不再支持该服务 (' + url + ')');
 			let service = url.split('/').filter(u => u.length > 0)[0];
 			if (!!service && (node.services !== 'all')) node.removeService(service);
 			conn.connFail ++;
@@ -739,7 +739,7 @@ const connectNode = node => new Promise(res => {
 	}
 	connect(node, (data, err) => {
 		if (!!err) {
-			Logger.error('与节点 ' + node.name + ' 握手失败: ' + err.message);
+			Logger.warn('与节点 ' + node.name + ' 握手失败: ' + err.message);
 			node.available = false;
 			return res(err);
 		}

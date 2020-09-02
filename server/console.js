@@ -281,7 +281,8 @@ const showStatUsage = data => {
 		console.log('　　　代理网关：\t' + (data.isDelegator ? '是' : '否'));
 		console.log('　　　集群节点：\t' + (data.isInGroup ? '是' : '否'));
 		console.log('　　并行进程数：\t' + data.processCount);
-		console.log('　　并发任务数：\t' + data.concurrence);
+		if (Number.is(data.concurrence)) console.log('　　并发任务数：\t' + data.concurrence);
+		else console.log('　　并发任务数：\t' + (data.concurrence.cluster || 'auto') + '（节点）    ' + (data.concurrence.local || 'auto') + '（进程/线程）');
 		console.log('等待中的任务数：\t' + data.pending);
 		data.workers.forEach((worker, i) => {
 			let list = [];
@@ -304,15 +305,15 @@ const showStatUsage = data => {
 const showStatNetwork = data => {
 	if (data.ok) {
 		data = data.data;
-		console.log('等待中的任务数：\t' + data.pending);
+		console.log('等待中的任务数： ' + data.pending);
 
-		console.log('　　可用节点数：\t' + data.nodes.length);
+		console.log('　　可用节点数： ' + data.nodes.length);
 		data.nodes.forEach((user, i) => {
 			console.log(setStyle('======== 节点-' + (i + 1) + ' ========', 'bold green'));
-			console.log('　　　　　　　ID：' + user.node);
-			console.log('　　　　　优先度：' + (Math.round(user.power * 100) / 100));
-			console.log('　　　　可用服务：' + (!!user.services.join ? user.services.join(', ') : user.services));
-			console.log('　　　　任务情况：' + user.taskInfo.done + ' / ' + user.taskInfo.total + '    失败：' + user.taskInfo.failed);
+			console.log('　　　　　　　　ID：' + user.node);
+			console.log('　　　　　　优先度：' + (Math.round(user.power * 100) / 100));
+			console.log('　　　　　可用服务：' + (!!user.services.join ? user.services.join(', ') : user.services));
+			console.log('　　　　　任务情况：' + user.taskInfo.done + ' / ' + user.taskInfo.total + '    失败：' + user.taskInfo.failed);
 			console.log('　　　　可用连接数：' + user.conns.length);
 			user.conns.forEach(conn => {
 				if (conn.connected) {
@@ -329,7 +330,7 @@ const showStatNetwork = data => {
 			});
 		});
 
-		console.log(setStyle('等待连接节点数：\t' + data.waitingConns.length, 'bold red'));
+		console.log(setStyle('待连接节点数： ' + data.waitingConns.length, 'bold red'));
 		data.waitingConns.forEach(conn => {
 			console.log('    ' + conn);
 		});
