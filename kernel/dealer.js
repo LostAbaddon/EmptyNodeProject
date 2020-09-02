@@ -54,8 +54,9 @@ class Dealer {
 			success = !!result;
 		}
 		this.done ++;
+		var timespent = 0;
 		if (success) {
-			let timespent = task._finishtime - task._starttime;
+			timespent = task._finishtime - task._starttime;
 			this.timespent += timespent;
 		}
 		else {
