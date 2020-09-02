@@ -143,9 +143,9 @@ const createServer = (config, options) => {
 		// 启动 Web 服务器
 		count ++;
 		tasks.web = false;
-		webServer(cfg, (error) => {
+		webServer(cfg, error => {
 			if (error instanceof Error) {
-				logger.error('Launch Web-Server Failed.');
+				logger.error('Launch Web-Server Failed: ' + error.message);
 				cb('web', false);
 			}
 			else {
@@ -156,9 +156,9 @@ const createServer = (config, options) => {
 		// 启动 TCP / UDP 服务器
 		count ++;
 		tasks.socket = false;
-		socketServer(cfg, (error) => {
+		socketServer(cfg, error => {
 			if (error instanceof Error) {
-				logger.error('Launch Socket-Server Failed.');
+				logger.error('Launch Socket-Server Failed: ' + error.message);
 				cb('socket', false);
 			}
 			else {
@@ -173,7 +173,7 @@ const createServer = (config, options) => {
 			if (!String.is(ipc)) ipc = DefailtIPC;
 			consoleServer.create(clp, ipc, err => {
 				if (err instanceof Error) {
-					logger.error(err.message);
+					logger.error('Launch Console-Server Failed: ' + err.message);
 					cb('console', false);
 				}
 				else {
