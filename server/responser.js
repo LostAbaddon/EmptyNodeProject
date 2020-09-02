@@ -249,8 +249,6 @@ const narrowcast = (msg, event) => {
 };
 
 const setConfig = async (cfg, callback) => {
-	await Personel.init(cfg);
-
 	if (Boolean.is(cfg.isDelegator)) isDelegator = cfg.isDelegator;
 	if (Array.is(cfg.api.services)) Config.services.push(...cfg.api.services);
 	else if (String.is(cfg.api.services)) Config.services.push(cfg.api.services);
@@ -281,6 +279,7 @@ const setConfig = async (cfg, callback) => {
 		actions.push(wait());
 	}
 
+	actions.push(Personel.init(cfg));
 	actions.push(Galanet.setConfig(cfg));
 	await Promise.all(actions);
 	Galanet.shakehand();
