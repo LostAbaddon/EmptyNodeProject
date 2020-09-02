@@ -117,7 +117,6 @@ Galanet 是内网系统，节点之间彼此信任；Ising 是外网系统，通
 
 ## 计划
 
--	主分支：使用DealerPool模式调度业务进程 (working)
 -	主分支：更好的线程管理 (working)
 -	主分支：增加广播、窄播、特定节点播放以及加密通讯 (working)
 -	withDB分支：SCT增加空值检测机制以防止缓存穿透攻击 (working)
