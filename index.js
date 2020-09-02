@@ -36,18 +36,20 @@ const createServer = (config, options) => {
 	.addOption('--logFile <logFile> >> 日志输出目录')
 	.addOption('--silence >> 不显示控制台日志');
 
-	options.forEach(opt => clp.addOption(opt));
+	if (Array.is(options)) options.forEach(opt => clp.addOption(opt));
 
 	clp.on('command', async (param, command) => {
 		var cfg = param.config || './config.json';
 		if (!!cfg) {
-			cfg = require('path').join(process.cwd(), cfg);
+			cfg = Path.join(process.cwd(), cfg);
 			try {
 				cfg = require(cfg);
-				cfg = Object.assign(config.config.duplicate(), cfg);
+				if (!!config.config) cfg = Object.assign(config.config.duplicate(), cfg);
 			}
 			catch (err) {
-				cfg = config.config.duplicate();
+				console.log(err);
+				if (!!config.config) cfg = config.config.duplicate();
+				else cfg = { port: {} };
 			}
 		}
 		if (Number.is(param.port)) cfg.port.http = param.port;
