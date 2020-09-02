@@ -508,7 +508,17 @@ const launchTask = (responsor, param, query, url, data, method, source, ip, port
 
 	// 处理请求：本地转发给业务进程，远端则进行通讯发送请求
 	if (node === UserManager.localUser) {
-		result = await ResponsorManager.launchLocally(responsor, param, query, url, data, method, source, ip, port);
+		if (isDelegator) {
+			let err = new Errors.GalanetError.QuestDelegator('来自：' + sender);
+			result = {
+				ok: false,
+				code: err.code,
+				message: err.message
+			};
+		}
+		else {
+			result = await ResponsorManager.launchLocally(responsor, param, query, url, data, method, source, ip, port);
+		}
 	}
 	else {
 		Logger.log("请求" + sender + '/' + sendInfo + '被转发至' + conn.name + '。 Q: ' + JSON.stringify(query) + '; P: ' + JSON.stringify(param));

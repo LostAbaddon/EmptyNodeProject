@@ -55,6 +55,7 @@ Errors.GalanetError.UnavailableNodeAddress = new BlackHole("无法解析的节�
 Errors.GalanetError.NoSuchNode = new BlackHole("当前集群中无指定节点", "GLN-00007", "NoSuchNode");
 Errors.GalanetError.Unauthorized = new BlackHole("无权限调用本接口", "GLN-00008", "Unauthorized");
 Errors.GalanetError.WrongQuestPath = new BlackHole("无效的请求路径", "GLN-00009", "WrongQuestPath");
+Errors.GalanetError.QuestDelegator = new BlackHole("网关收到请求", "GLN-00010", "QuestDelegator");
 
 Errors.Quark = {};
 Errors.Quark.DefaultPackerError = new BlackHole("不可用默认打包器", "QRK-000001", "DefaultPackerError");

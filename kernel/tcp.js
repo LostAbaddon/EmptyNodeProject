@@ -247,7 +247,7 @@ const createClient = (host, port, message, callback, persist=false) => new Promi
 			socket.destroy();
 			return;
 		}
-		callback(null, err);
+		if (!!callback) callback(null, err);
 		res([null, err]);
 	})
 	.on('connect', () => {
