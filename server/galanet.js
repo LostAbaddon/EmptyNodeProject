@@ -566,6 +566,15 @@ const launchTask = (responsor, param, query, url, data, method, source, ip, port
 			await waitLoop();
 			result = await launchTask(responsor, param, query, url, data, method, source, ip, port);
 		}
+		else if (result.code === Errors.GalanetError.RequestTimeout.code) {
+			Logger.error('请求响应超时: ' + err.message);
+			conn.connFail ++;
+			if (conn.connFail > 3) {
+				conn.connected = false;
+			}
+			await waitLoop();
+			result = await launchTask(responsor, param, query, url, data, method, source, ip, port);
+		}
 		else if (result.code === Errors.GalanetError.CannotService.code) {
 			Logger.error(conn.name + ' : 目标友机不再支持该服务 (' + url + ')');
 			let service = url.split('/').filter(u => u.length > 0)[0];
@@ -723,7 +732,6 @@ const sendRequest = (node, method, path, message) => new Promise(res => {
 			timer = null;
 		}
 		if (!!err) {
-			Logger.error(err);
 			result = {
 				ok: false,
 				code: err.code || 500,
