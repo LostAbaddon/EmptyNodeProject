@@ -98,6 +98,8 @@ const createServer = (config, options) => {
 			cfg.isDelegator = true;
 		}
 
+		global.localIPs = _('Utils.getLocalIP')();
+
 		var tasks = {}, count = 0, success = 0;
 		var cb = (task, ok) => {
 			if (tasks[task]) return;

@@ -178,7 +178,7 @@ const createServer = (host, port, callback, onMessage, onError) => new Promise(r
 		if (!!callback) callback(server, null);
 		res([server, null]);
 	};
-	if (isIP) server.listen(port, host, onInit);
+	if (isIP) server.listen(port, onInit);
 	else {
 		if (OS.platform() === 'win32') host = '\\\\?\\pipe\\' + host;
 		server.listen(host, onInit);

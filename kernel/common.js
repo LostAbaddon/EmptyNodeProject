@@ -80,9 +80,9 @@ const getLocalIP = () => {
 	for (let networks in interfaces) {
 		networks = interfaces[networks];
 		for (let addr of networks) {
-			addr = addr.address;
-			if (addr === '127.0.0.1' || addr === '::1') continue;
-			if (!ips.includes(addr)) ips.push(addr);
+			if (addr.internal) continue;
+			if (addr.netmask === '255.255.255.255' || addr.netmask === 'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff') continue;
+			ips.push([addr.address, addr.family]);
 		}
 	}
 	return ips;

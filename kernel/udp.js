@@ -112,7 +112,7 @@ const createServer = (host, port, callback, onMessage, onError) => new Promise(r
 	});
 	// 绑定监听端口
 	try {
-		server.bind(port, host);
+		server.bind(port);
 	}
 	catch (err) {
 		if (inited) return;
