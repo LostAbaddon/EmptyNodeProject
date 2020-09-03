@@ -103,7 +103,7 @@ const createServer = (host, port, callback, onMessage, onError) => new Promise(r
 			catch {
 				data = message;
 			}
-			if (!!onMessage) onMessage(data, server, reply => {
+			if (!!onMessage) onMessage(data, remote, reply => {
 				if (!packages) return;
 				packages.push(...packageMessage(reply, DefaultConfig.chunkSize, mid));
 				send(remote.address, remote.port);
