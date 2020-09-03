@@ -405,6 +405,12 @@ const setConfig = async (cfg, callback) => {
 		RichAddress.Limit = cfg.concurrence.cluster;
 		UserNode.Limit = cfg.concurrence.cluster;
 	}
+	if (Number.is(cfg.timeout)) {
+		Config.timeout = cfg.timeout;
+	}
+	else if (Number.is(cfg.timeout?.cluster)) {
+		Config.timeout = cfg.timeout.cluster;
+	}
 	ResponsorManager.load(Path.join(__dirname, 'insider'), false);
 
 	if (isSlaver) return callback();
