@@ -454,6 +454,8 @@ const reshakehand = ip => {
 };
 const checkIP = ip => {
 	if (ip === '0.0.0.0' || ip === '::' || ip === '127.0.0.1' || ip === '::ffff:127.0.0.1') return true;
+	var reg = ip.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+	if (!!reg) ip = reg[1];
 	return UserManager.hasHost(ip);
 }
 const checkService = url => {
