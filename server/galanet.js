@@ -167,7 +167,8 @@ class UserNode extends Dealer {
 	addService (services) {
 		if (this.state === Dealer.State.DYING || this.state === Dealer.State.DIED) return;
 
-		if (services === 'all') {
+		if (this.#services === 'all') return;
+		else if (services === 'all') {
 			this.#services.clear();
 			this.#services = 'all';
 		}
@@ -180,6 +181,7 @@ class UserNode extends Dealer {
 	removeService (service) {
 		if (this.state === Dealer.State.DYING || this.state === Dealer.State.DIED) return;
 
+		if (this.#services === 'all') return;
 		this.#services.delete(service);
 	}
 	resetServices () {
@@ -455,6 +457,7 @@ const reshakehand = ip => {
 const checkIP = ip => {
 	if (ip === '0.0.0.0' || ip === '::' || ip === '127.0.0.1' || ip === '::ffff:127.0.0.1') return true;
 	var reg = ip.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+	if (!!reg) console.log('>>>>>>>>>>>>>>>>>>>>>>>>>>>>', ip);
 	if (!!reg) ip = reg[1];
 	return UserManager.hasHost(ip);
 }

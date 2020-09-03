@@ -107,6 +107,8 @@ const init = (config, callback) => {
 
 			var event = msg.event, data = msg.data, action = msg.action || 'get';
 			if (Object.isBasicType(data)) data = {content: data};
+			var reg = host.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+			if (!!reg) host = reg[1];
 			var [res, query] = ResponsorManager.match(event, action, protocol);
 			if (!!res) {
 				let result = null;
