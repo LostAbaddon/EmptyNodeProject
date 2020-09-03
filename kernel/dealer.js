@@ -14,7 +14,7 @@ class Dealer {
 		this.power = this.constructor.Initial;
 	}
 	start (task, callback) {
-		callback = callback || () => {};
+		if (!callback) callback = () => {};
 		if (!this.isOK) {
 			let err = new Errors.Dealer.DealerNotAvailable();
 			callback({
