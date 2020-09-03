@@ -728,7 +728,7 @@ const sendRequest = (node, method, path, message) => new Promise(res => {
 	}
 	var timer = setTimeout(() => {
 		var sendInfo = method + ':' + path;
-		cb(null, Errors.GalanetError.RequestTimeout('转发目标: ' + node.name + '; 请求: ' + sendInfo));
+		cb(null, new Errors.GalanetError.RequestTimeout('转发目标: ' + node.name + '; 请求: ' + sendInfo));
 	}, Config.timeout);
 
 	if (node.protocol === 'http') {
