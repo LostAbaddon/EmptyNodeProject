@@ -13,7 +13,8 @@ const ReshakeInterval = 1000 * 60; // 每过一分钟自动重连一次
 const AvailableSource = [ 'tcp', 'udp', 'http' ];
 const Config = {
 	prefix: '',
-	services: []
+	services: [],
+	timeout: 10000,
 };
 const Pending = [];
 const Reshakings = new Map();
@@ -592,7 +593,7 @@ const launchTask = (responsor, param, query, url, data, method, source, ip, port
 
 	var task = Pending.shift();
 	if (!!task) {
-		Logger.log("池中请求" + sender + '/' + sendInfo + '被转发至' + conn.name + '。 Q: ' + JSON.stringify(query) + '; P: ' + JSON.stringify(param));
+		Logger.log("重发池中请求" + sender + '/' + sendInfo + '。 Q: ' + JSON.stringify(query) + '; P: ' + JSON.stringify(param));
 		launchTask(...task);
 	}
 });
@@ -637,7 +638,7 @@ const getUsage = () => {
 	return result;
 };
 
-const httpClient = (host, port, method, path, param, callback) => new Promise((res, rej) => {
+const httpClient = (host, port, method, path, param, callback) => new Promise(res => {
 	var cfg = {
 		method,
 		url: 'http://' + host + ':' + port + path
@@ -645,10 +646,10 @@ const httpClient = (host, port, method, path, param, callback) => new Promise((r
 	if (!!param) cfg.data = param;
 	Axios.request(cfg).then(result => {
 		if (!!callback) callback(result.data);
-		res(result.data);
+		res([result.data]);
 	}).catch(err => {
 		if (!!callback) callback(null, err);
-		rej(err);
+		res([null, err]);
 	});
 });
 
@@ -706,53 +707,50 @@ const shutdown = all => new Promise(async res => {
 	res(list.length);
 });
 
-const sendRequest = async (node, method, path, message) => {
-	var result;
-	try {
-		if (node.protocol === 'http') {
-			result = await httpClient(node.host, node.port, method, Config.prefix + path, message);
+const sendRequest = (node, method, path, message) => new Promise(res => {
+	var finished = false;
+	var cb = (result, err) => {
+		if (finished) return;
+		finished = true;
+		if (!!timer) {
+			clearTimeout(timer);
+			timer = null;
+		}
+		if (!!err) {
+			Logger.error(err);
+			result = {
+				ok: false,
+				code: err.code || 500,
+				message: err.message
+			};
+		}
+		res(result);
+	}
+	var timer = setTimeout(() => {
+		var sendInfo = method + ':' + path;
+		cb(null, Errors.GalanetError.RequestTimeout('转发目标: ' + node.name + '; 请求: ' + sendInfo));
+	}, Config.timeout);
+
+	if (node.protocol === 'http') {
+		httpClient(node.host, node.port, method, Config.prefix + path, message, cb);
+	}
+	else {
+		let data = {
+			action: method || 'get',
+			event: path,
+			data: message
+		};
+		if (node.protocol === 'tcp') {
+			TCP.client(node.host, node.port, data, cb);
+		}
+		else if (node.protocol === 'udp') {
+			UDP.client(node.host, node.port, data, cb);
 		}
 		else {
-			let data = {
-				action: method || 'get',
-				event: path,
-				data: message
-			};
-			let err;
-			if (node.protocol === 'tcp') {
-				[result, err] = await TCP.client(node.host, node.port, data);
-			}
-			else if (node.protocol === 'udp') {
-				[result, err] = await UDP.client(node.host, node.port, data);
-			}
-			else {
-				let err = new Errors.GalanetError.WrongProtocol('错误的请求协议：' + node.protocol);
-				return {
-					ok: false,
-					code: err.code,
-					message: err.message
-				};
-			}
-			if (!!err) {
-				Logger.error(err);
-				return {
-					ok: false,
-					code: err.code || 500,
-					message: err.message
-				};
-			}
+			cb(null, new Errors.GalanetError.WrongProtocol('错误的请求协议：' + node.protocol));
 		}
-		return result;
 	}
-	catch (err) {
-		Logger.error(err);
-		return {
-			ok: false,
-			code: err.code || 500,
-			message: err.message
-		};
-	}
-};
+});
 
 const connectNode = node => new Promise(res => {
 	var connect;
@@ -816,13 +814,19 @@ const connectNode = node => new Promise(res => {
 	});
 });
 const connectHTTP = async (node, callback) => {
-	try {
-		var reply = await httpClient(node.host, node.port, 'get', Config.prefix + '/galanet/shakehand', null);
-		if (reply.ok) callback(reply.data);
-		else callback(null, new Errors.GalanetError.ShakehandFailed(reply.message))
+	var [reply, err] = await httpClient(node.host, node.port, 'get', Config.prefix + '/galanet/shakehand', null);
+	if (!!err) {
+		if (!!callback) callback(null, err);
+		return [null, err];
 	}
-	catch (err) {
-		callback(null, err);
+	else if (reply.ok) {
+		if (!!callback) callback(reply.data);
+		return [reply.data];
+	}
+	else {
+		err = new Errors.GalanetError.ShakehandFailed(reply.message);
+		if (!!callback) callback(null, err);
+		return [null, err];
 	}
 };
 const connectTCP = async (node, callback) => {

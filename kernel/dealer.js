@@ -14,9 +14,10 @@ class Dealer {
 		this.power = this.constructor.Initial;
 	}
 	start (task, callback) {
+		callback = callback || () => {};
 		if (!this.isOK) {
 			let err = new Errors.Dealer.DealerNotAvailable();
-			if (!!callback) callback({
+			callback({
 				ok: false,
 				code: err.code,
 				message: err.message
@@ -29,7 +30,7 @@ class Dealer {
 		if (!!cb) {
 			let ncb = result => {
 				cb(result);
-				if (!!callback) callback(result);
+				callback(result);
 			}
 			this.#map.set(task, ncb);
 			return;
@@ -41,18 +42,18 @@ class Dealer {
 		this.#map.set(task, callback);
 	}
 	finish (task, result) {
+		var cb = this.#map.get(task);
+		if (!cb) return;
+
 		task._finishtime = now();
+
 		var success;
 		if (Boolean.is(result)) success = result;
-		else if (!result) {
-			success = false;
-		}
-		else if (Boolean.is(result.ok)) {
-			success = result.ok;
-		}
-		else {
-			success = !!result;
-		}
+		else if (Object.isBasicType(result)) success = true;
+		else if (!result) success = false;
+		else if (Boolean.is(result.ok)) success = result.ok;
+		else success = true;
+
 		this.done ++;
 		var timespent = 0;
 		if (success) {
@@ -66,14 +67,14 @@ class Dealer {
 		else this.energy = this.timespent / (this.done - this.failed) * (this.total + this.failed) / this.total;
 		if (success) this.energy = (this.energy * this.constructor.AveWeight + timespent * this.constructor.LastWeight) / (this.constructor.AveWeight + this.constructor.LastWeight);
 		this.power = this.energy * (this.working + 1);
-		var cb = this.#map.get(task);
-		if (!!cb) cb(result);
 
 		this.#map.delete(task);
 		if (this.working === 0) {
 			if (this.state === Dealer.State.DYING) this.#suicide();
 			else if (this.state !== Dealer.State.DIED) this.state = Dealer.State.READY;
 		}
+
+		cb(result);
 	}
 	forEach (data) {
 		if (!this.isOK) return;
