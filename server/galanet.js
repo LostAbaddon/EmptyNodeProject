@@ -452,7 +452,10 @@ const reshakehand = ip => {
 		UserManager.shakehand(ip);
 	}, 1000));
 };
-const checkIP = ip => UserManager.hasHost(ip);
+const checkIP = ip => {
+	if (ip === '0.0.0.0' || ip === '::' || ip === '127.0.0.1' || ip === '::ffff:127.0.0.1') return true;
+	return UserManager.hasHost(ip);
+}
 const checkService = url => {
 	if (!Config.services || Config.services.length === 0) return true;
 	url = url.split('/').filter(f => f.trim().length > 0)[0];
