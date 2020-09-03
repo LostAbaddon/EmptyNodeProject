@@ -36,8 +36,7 @@ const init = (config, callback) => {
 				cb('tcp', true);
 			}
 		}, (msg, socket, resp) => {
-			var remote = socket.address();
-			eventLoop.emit('message', 'tcp', remote.address, remote.port, msg, socket, resp);
+			eventLoop.emit('message', 'tcp', socket.remoteAddress, socket.remotePort, msg, socket, resp);
 		});
 	}
 	if (String.is(config.port.pipe)) {
@@ -69,7 +68,7 @@ const init = (config, callback) => {
 				cb('udp4', true);
 			}
 		}, (msg, socket, resp) => {
-			var remote = socket.address();
+			var remote = socket.remoteAddress();
 			eventLoop.emit('message', 'udp', remote.address, remote.port, msg, socket, resp);
 		});
 	}
@@ -86,7 +85,7 @@ const init = (config, callback) => {
 				cb('udp6', true);
 			}
 		}, (msg, socket, resp) => {
-			var remote = socket.address();
+			var remote = socket.remoteAddress();
 			eventLoop.emit('message', 'udp', remote.address, remote.port, msg, socket, resp);
 		});
 	}
