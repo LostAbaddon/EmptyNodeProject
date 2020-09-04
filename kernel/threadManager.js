@@ -1,3 +1,4 @@
+const Path = require('path');
 const { Worker } = require('worker_threads');
 const newLongID = _('Message.newLongID');
 const Logger = new (_("Utils.Logger"))('ThreadManager');
@@ -11,7 +12,7 @@ const setConcurrence = con => {
 	MaxWorkerLimit = con;
 };
 const newWorker = filepath => {
-	var worker = new Worker('../kernel/thread/tx_thread_pool.js', {
+	var worker = new Worker(Path.join(__dirname, '../kernel/thread/tx_thread_pool.js'), {
 		workerData: {
 			isSlaver: global.isSlaver,
 			isMultiProcess: global.isMultiProcess,
