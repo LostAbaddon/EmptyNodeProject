@@ -567,7 +567,7 @@ const launchTask = (responsor, param, query, url, data, method, source, ip, port
 			result = await launchTask(responsor, param, query, url, data, method, source, ip, port);
 		}
 		else if (result.code === Errors.GalanetError.RequestTimeout.code) {
-			Logger.error('请求响应超时: ' + err.message);
+			Logger.error('请求响应超时: ' + result.message);
 			conn.connFail ++;
 			if (conn.connFail > 3) {
 				conn.connected = false;
