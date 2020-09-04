@@ -112,6 +112,7 @@ class Logger {
 		this.#record(item);
 	}
 	appendRecord (item) {
+		if (Logger.LogLimit > item.level) return;
 		var rec = new LogRecord(item.level, item.title, ...item.data);
 		rec.stamp = new Date(item.stamp);
 		this.#record(rec);
@@ -133,7 +134,7 @@ class Logger {
 			}
 		});
 		this.#history = not;
-		if (need && output2File)  thread.postMessage(list.map(item => {
+		if (need && output2File) thread.postMessage(list.map(item => {
 			return {
 				stamp: item.stamp.getTime(),
 				type: item.level,

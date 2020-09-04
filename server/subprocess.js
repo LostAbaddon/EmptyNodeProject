@@ -20,6 +20,12 @@ const setConfig = async cfg => {
 	if (Array.is(cfg.api?.services)) {
 		Config.services.push(...cfg.api.services);
 	}
+	if (Number.is(cfg.concurrence)) {
+		ThreadManager.setConcurrence(cfg.concurrence);
+	}
+	else if (Number.is(cfg.concurrence?.worker)) {
+		ThreadManager.setConcurrence(cfg.concurrence.worker);
+	}
 	ResponsorManager.loadProcessor(cfg);
 	await Galanet.setConfig(cfg);
 
@@ -45,43 +51,30 @@ const setConfig = async cfg => {
 	process.send({ event: 'ready' });
 };
 const doTask = async (tid, target, data) => {
-	var resp = ResponsorMap[target];
 	var result;
-	try {
-		data.data = data.data || {};
-		let resume = true;
-		if (ResponsorManager.preprocessor.length > 0) {
-			for (let pro of ResponsorManager.preprocessor) {
-				let r = await pro(data.param, data.query, data.url, data.data, data.method, data.source, data.ip, data.port);
-				if (!!r && !r.ok) {
-					result = r;
-					resume = false;
-					break;
-				}
-			}
-		}
-		if (resume) {
-			if (resp.mode === 'thread_once') {
-				result = await ThreadManager.runInThread(resp.responsor, data.param, data.query, data.url, data.data, data.method, data.source, data.ip, data.port);
-			}
-			else {
-				result = await resp.responsor(data.param, data.query, data.url, data.data, data.method, data.source, data.ip, data.port);
-			}
-			if (ResponsorManager.postprocessor.length > 0) {
-				for (let pro of ResponsorManager.postprocessor) {
-					let r = await pro(result, data.param, data.query, data.url, data.data, data.method, data.source, data.ip, data.port);
-					if (!!r) break;
-				}
-			}
-		}
-	}
-	catch (err) {
-		Logger.error(err);
+	var resp = ResponsorMap[target];
+	if (!resp) {
+		let err = new Errors.RuntimeError.ResponsorModuleMissing('module: ' + target);
 		result = {
 			ok: false,
 			code: err.code,
 			message: err.message
 		};
+	}
+	else {
+		let responsor = resp.responsor;
+		responsor.mode = resp.mode;
+		try {
+			result = await ResponsorManager.doJob(responsor, data.param, data.query, data.url, data.data, data.method, data.source, data.ip, data.port);
+		}
+		catch (err) {
+			Logger.error(err);
+			result = {
+				ok: false,
+				code: err.code,
+				message: err.message
+			};
+		}
 	}
 	process.send({
 		event: 'jobdone',

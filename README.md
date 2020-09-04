@@ -30,13 +30,13 @@
 	-	采用自研 Quark 数据结构与 Atom 数据类进行通讯
 5.	支持多线程与多进程混合模式
 	-	业务响应模式分为：
-		1.	进程执行模式（SPE: Single Process Execution）
+		1.	进程执行模式（SPE: Single Process Execution，标记为 process）
 			默认执行方式，在业务进程中响应请求，不启用线程
-		2.	一次性线程执行模式（OTE: One-time Thread Execution）
+		2.	一次性线程执行模式（OTE: One-time Thread Execution，标记为 thread_once）
 			每次响应事务都会新开启一根线程，执行结束后返回结果并销毁线程
-		3.	事务线程池执行模式（TTP: Transaction Thread Pool）
+		3.	事务线程池执行模式（TTP: Transaction Thread Pool，标记为 tx_thread_pool）
 			每个 API 模块一根独立线程
-		4.	驻守线程池执行模式（LTP: Long-term Thread Pool）
+		4.	驻守线程池执行模式（CTP: Common Thread Pool，标记为 cm_thread_pool）
 			全局统一线程池
 6.	支持控制台响应
 	-	查看本地各进程、集群中各节点的负载情况（查看命令：console stat usage、console stat cluster）

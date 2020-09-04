@@ -237,9 +237,15 @@ const setConfig = async (cfg, callback) => {
 	Config.options = cfg;
 	if (Number.is(cfg.concurrence)) {
 		TxWorker.Limit = cfg.concurrence;
+		ThreadManager.setConcurrence(cfg.concurrence);
 	}
-	else if (Number.is(cfg.concurrence?.process)) {
-		TxWorker.Limit = cfg.concurrence.process;
+	else {
+		if (Number.is(cfg.concurrence?.process)) {
+			TxWorker.Limit = cfg.concurrence.process;
+		}
+		if (Number.is(cfg.concurrence?.worker)) {
+			ThreadManager.setConcurrence(cfg.concurrence.worker);
+		}
 	}
 
 	loadPrePostWidget(cfg);
@@ -367,6 +373,9 @@ const loadResponseFile = (path, filepath) => {
 
 	res._queryList = parts;
 	res.responsor._url = url;
+	res.mode = res.mode || Config.defaultMode;
+	res.responsor.mode = res.mode;
+	if (res.mode === 'tx_thread_pool') ThreadManager.setupTxPool(url, filepath);
 
 	ResponsorMap[url] = res;
 	ResponsorList.push(res);
@@ -430,7 +439,7 @@ const matchResponsor = (url, method, source) => {
 			if (res.methods === null || (!!res.methods.includes && res.methods.includes(method))) didMatch = true;
 			if (didMatch) {
 				let resp = res.responsor;
-				resp.mode = res.mode || Config.defaultMode;
+				resp.mode = res.mode;
 				return [resp, query];
 			}
 		}
@@ -531,38 +540,13 @@ const launchResponsor = (responsor, param, query, url, data, method, source, ip,
 	}
 	res(result);
 });
-const launchLocalResponsor = (responsor, param, query, url, data, method, source, ip, port) => new Promise(async res => {
+const launchLocalResponsor = async (responsor, param, query, url, data, method, source, ip, port) => {
+	var result;
 	if (!isMultiProcess) {
-		let result;
 		TaskInfo.total ++;
 		let time = now();
 		try {
-			let resume = true;
-			data = data || {};
-			if (Config.preprocessor.length > 0) {
-				for (let pro of Config.preprocessor) {
-					let r = await pro(param, query, url, data, method, source, ip, port);
-					if (!!r && !r.ok) {
-						result = r;
-						resume = false;
-						break;
-					}
-				}
-			}
-			if (resume) {
-				if (responsor.mode === 'thread_once') {
-					result = await ThreadManager.runInThread(responsor, param, query, url, data, method, source, ip, port);
-				}
-				else {
-					result = await responsor(param, query, url, data, method, source, ip, port);
-				}
-				if (Config.postprocessor.length > 0) {
-					for (let pro of Config.postprocessor) {
-						let r = await pro(result, param, query, url, data, method, source, ip, port);
-						if (!!r) break;
-					}
-				}
-			}
+			result = await doJob(responsor, param, query, url, data, method, source, ip, port);
 		}
 		catch (err) {
 			Logger.error(err);
@@ -577,18 +561,50 @@ const launchLocalResponsor = (responsor, param, query, url, data, method, source
 		TaskInfo.spent += time;
 		TaskInfo.energy = TaskInfo.spent / TaskInfo.done;
 		TaskInfo.power = (TaskInfo.energy * 2 + time) / 3;
-		return res(result);
+	}
+	else {
+		result = await WorkerPool.launchTask({
+			tid: newLongID(),
+			responsor: responsor._url,
+			data: { param, query, url, data: {}, method, source, ip, port },
+			stamp: now()
+		});
 	}
 
-	var task = {
-		tid: newLongID(),
-		responsor: responsor._url,
-		data: { param, query, url, data: {}, method, source, ip, port },
-		stamp: now()
-	};
-	var result = await WorkerPool.launchTask(task);
-	res(result);
-});
+	return result;
+};
+const doJob = async (responsor, param, query, url, data, method, source, ip, port) => {
+	var resume = true, result;
+	data = data || {};
+	if (Config.preprocessor.length > 0) {
+		for (let pro of Config.preprocessor) {
+			let r = await pro(param, query, url, data, method, source, ip, port);
+			if (!!r && !r.ok) {
+				result = r;
+				resume = false;
+				break;
+			}
+		}
+	}
+	if (resume) {
+		if (responsor.mode === 'thread_once') {
+			result = await ThreadManager.runInThread(responsor, param, query, url, data, method, source, ip, port);
+		}
+		else if (responsor.mode === 'tx_thread_pool') {
+			result = await ThreadManager.runInTxThread(responsor, param, query, url, data, method, source, ip, port);
+		}
+		else {
+			result = await responsor(param, query, url, data, method, source, ip, port);
+		}
+		if (Config.postprocessor.length > 0) {
+			for (let pro of Config.postprocessor) {
+				let r = await pro(result, param, query, url, data, method, source, ip, port);
+				if (!!r) break;
+			}
+		}
+	}
+	return result;
+};
 
 const extinctSlavers = () => {
 	if (isSlaver) return;
@@ -653,6 +669,7 @@ module.exports = {
 	match: matchResponsor,
 	launch: launchResponsor,
 	launchLocally: launchLocalResponsor,
+	doJob,
 	setConcurrence,
 	setProcessCount,
 	extinct: extinctSlavers,
@@ -662,11 +679,5 @@ module.exports = {
 	getUsage,
 	get processCount () {
 		return WorkerPool.count;
-	},
-	get preprocessor () {
-		return Config.preprocessor;
-	},
-	get postprocessor () {
-		return Config.postprocessor;
 	}
 };

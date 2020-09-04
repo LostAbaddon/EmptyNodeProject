@@ -44,6 +44,8 @@ Errors.ServerError.CreateConsoleFailed = new BlackHole("命令行控制台初始
 Errors.RuntimeError = {};
 Errors.RuntimeError.MainProcessExited = new BlackHole("主进程关闭", "RTM-00001", "MainProcessExited");
 Errors.RuntimeError.SubProcessBrokenDown = new BlackHole("子进程离线", "RTM-00002", "SubProcessBrokenDown");
+Errors.RuntimeError.ResponsorModuleMissing = new BlackHole("响应模块缺失", "RTM-00003", "ResponsorModuleMissing");
+Errors.RuntimeError.NoRegisteredThread = new BlackHole("无业务相关注册线程", "RTM-00004", "NoRegisteredThread");
 
 Errors.GalanetError = {};
 Errors.GalanetError.ShakehandFailed = new BlackHole("Galanet握手失败", "GLN-00001", "ShakehandFailed");
