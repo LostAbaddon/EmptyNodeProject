@@ -4,6 +4,7 @@ const Path = require('path');
 require("../core");
 loadall(__dirname, "../kernel", false);
 const ResponsorManager = require('./responser');
+const ThreadManager = require('../kernel/threadManager');
 const Galanet = require('./galanet');
 const Shakehand = _('Message.Shakehand');
 const Logger = new (_("Utils.Logger"))('SubProcess');
@@ -60,7 +61,12 @@ const doTask = async (tid, target, data) => {
 			}
 		}
 		if (resume) {
-			result = await resp.responsor(data.param, data.query, data.url, data.data, data.method, data.source, data.ip, data.port);
+			if (resp.mode === 'thread_once') {
+				result = await ThreadManager.runInThread(resp.responsor, data.param, data.query, data.url, data.data, data.method, data.source, data.ip, data.port);
+			}
+			else {
+				result = await resp.responsor(data.param, data.query, data.url, data.data, data.method, data.source, data.ip, data.port);
+			}
 			if (ResponsorManager.postprocessor.length > 0) {
 				for (let pro of ResponsorManager.postprocessor) {
 					let r = await pro(result, data.param, data.query, data.url, data.data, data.method, data.source, data.ip, data.port);

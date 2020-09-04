@@ -88,7 +88,7 @@ class Dealer {
 		this.#deads.push(cb);
 	}
 	#suicide () {
-		this.state == Dealer.State.DIED;
+		this.state = Dealer.State.DIED;
 		var list = this.#deads.copy();
 		this.#deads.clear();
 		this.#deads = undefined;

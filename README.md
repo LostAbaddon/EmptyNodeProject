@@ -29,9 +29,15 @@
 	-	公钥匹配的ID管理模式，并支持加密通讯（可生成公私钥对并读取，但需自己调用加密模块）
 	-	采用自研 Quark 数据结构与 Atom 数据类进行通讯
 5.	支持多线程与多进程混合模式
-	-	响应模块可申明为进程执行模式、一次性线程执行模式和线程驻守执行模式三种
-	-	一次性线程执行模式（mode:thread_once）每次调用时都会另开一根线程并加载、执行代码，结束后销毁线程
-	-	线程驻守模式采用常驻业务线程，业务进程使用线程池管理
+	-	业务响应模式分为：
+		1.	进程执行模式（SPE: Single Process Execution）
+			默认执行方式，在业务进程中响应请求，不启用线程
+		2.	一次性线程执行模式（OTE: One-time Thread Execution）
+			每次响应事务都会新开启一根线程，执行结束后返回结果并销毁线程
+		3.	事务线程池执行模式（TTP: Transaction Thread Pool）
+			每个 API 模块一根独立线程
+		4.	驻守线程池执行模式（LTP: Long-term Thread Pool）
+			全局统一线程池
 6.	支持控制台响应
 	-	查看本地各进程、集群中各节点的负载情况（查看命令：console stat usage、console stat cluster）
 	-	增加、移除 Galanet 节点（增删命令：console network --add xxx、console network --remove xxx）
@@ -122,6 +128,9 @@ Galanet 是内网系统，节点之间彼此信任；Ising 是外网系统，通
 ## 计划
 
 -	主分支：更好的线程管理 (working)
+	+	一次性线程执行模式（OTE模式）
+		-	业务进程支持OTE
+	+	常驻线程池模式（TPE模式）
 -	主分支：增加广播、窄播、特定节点播放以及加密通讯 (working)
 -	withDB分支：SCT增加空值检测机制以防止缓存穿透攻击 (working)
 -	withDB分支：SCT增加业务队列，避免缓存击穿和雪崩 (working)

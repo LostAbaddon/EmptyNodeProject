@@ -1,11 +1,11 @@
 const Path = require('path');
 const Process = require('child_process');
-const { Worker } = require('worker_threads');
 const Galanet = require('./galanet');
 const Watcher = require('../kernel/watcher');
 const Personel = require('./personel');
 const newLongID = _('Message.newLongID');
 const ModuleManager = _('Utils.ModuleManager');
+const ThreadManager = require('../kernel/threadManager');
 const { Dealer, DealerPool } = require('../kernel/dealer');
 const Logger = new (_("Utils.Logger"))('Responsor');
 const HotUpModuleExtName = [ 'js', 'mjs', 'cjs', 'json' ];
@@ -421,46 +421,6 @@ const loadResponsors = async (path, monitor=true) => {
 	list.forEach(filepath => loadResponseFile(path, filepath));
 };
 
-const runInThread = (responsor, param, query, url, data, method, source, ip, port) => new Promise(res => {
-	Logger.log('开始执行一次性线程任务: ' + responsor._url + ' / ' + url);
-	var targetJS = "const { Worker, workerData, parentPort } = require('worker_threads');";
-	targetJS += 'var _fun_ =' + responsor.toString();
-	targetJS += ';(async () => {var result = await _fun_(...workerData);parentPort.postMessage(result);})();';
-	var target = {};
-	for (let key in data) {
-		let value = data[key];
-		if (Object.isBasicType(value)) target[key] = value;
-	}
-	try {
-		var w = new Worker(targetJS, {
-			eval: true,
-			workerData: [param, query, url, target, method, source, ip, port]
-		})
-		.on('message', msg => {
-			res(msg);
-		})
-		.on('error', err => {
-			Logger.error('一次性线程执行出错: ' + err.message);
-			res({
-				ok: false,
-				code: err.code,
-				message: err.message
-			});
-		})
-		.on('exit', () => {
-			w.terminate();
-			w = null;
-		});
-	}
-	catch (err) {
-		res({
-			ok: false,
-			code: err.code,
-			message: err.message
-		});
-	}
-});
-
 const matchResponsor = (url, method, source) => {
 	var res = ResponsorMap[url], query = {}, didMatch = false;
 	if (!!res) {
@@ -591,7 +551,7 @@ const launchLocalResponsor = (responsor, param, query, url, data, method, source
 			}
 			if (resume) {
 				if (responsor.mode === 'thread_once') {
-					result = await runInThread(responsor, param, query, url, data, method, source, ip, port);
+					result = await ThreadManager.runInThread(responsor, param, query, url, data, method, source, ip, port);
 				}
 				else {
 					result = await responsor(param, query, url, data, method, source, ip, port);
@@ -624,8 +584,7 @@ const launchLocalResponsor = (responsor, param, query, url, data, method, source
 		tid: newLongID(),
 		responsor: responsor._url,
 		data: { param, query, url, data: {}, method, source, ip, port },
-		stamp: now(),
-		mode: responsor.mode
+		stamp: now()
 	};
 	var result = await WorkerPool.launchTask(task);
 	res(result);
