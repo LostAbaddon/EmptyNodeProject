@@ -26,6 +26,12 @@ const setConfig = async cfg => {
 	else if (Number.is(cfg.concurrence?.worker)) {
 		ThreadManager.setConcurrence(cfg.concurrence.worker);
 	}
+	if (Number.is(cfg.timeout)) {
+		ThreadManager.setTimeout(cfg.timeout);
+	}
+	else if (Number.is(cfg.timeout?.worker)) {
+		ThreadManager.setTimeout(cfg.timeout.worker);
+	}
 	ResponsorManager.loadProcessor(cfg);
 	await Galanet.setConfig(cfg);
 

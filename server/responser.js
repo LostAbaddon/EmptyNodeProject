@@ -247,6 +247,12 @@ const setConfig = async (cfg, callback) => {
 			ThreadManager.setConcurrence(cfg.concurrence.worker);
 		}
 	}
+	if (Number.is(cfg.timeout)) {
+		ThreadManager.setTimeout(cfg.timeout);
+	}
+	else if (Number.is(cfg.timeout?.worker)) {
+		ThreadManager.setTimeout(cfg.timeout.worker);
+	}
 
 	loadPrePostWidget(cfg);
 
