@@ -13,10 +13,6 @@ global.isSlaver = true;
 const Config = { path: '', services: [] };
 
 const setConfig = async cfg => {
-	if (!!cfg.api?.local) {
-		Config.path = cfg.api.local;
-		await ResponsorManager.load(Path.join(process.cwd(), Config.path));
-	}
 	if (Array.is(cfg.api?.services)) {
 		Config.services.push(...cfg.api.services);
 	}
@@ -31,6 +27,11 @@ const setConfig = async cfg => {
 	}
 	else if (Number.is(cfg.timeout?.worker)) {
 		ThreadManager.setTimeout(cfg.timeout.worker);
+	}
+
+	if (!!cfg.api?.local) {
+		Config.path = cfg.api.local;
+		await ResponsorManager.load(Path.join(process.cwd(), Config.path));
 	}
 	ResponsorManager.loadProcessor(cfg);
 	await Galanet.setConfig(cfg);

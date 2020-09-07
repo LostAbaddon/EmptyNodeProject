@@ -341,8 +341,6 @@ class UserPool extends DealerPool {
 		});
 		if (list.length === 0) return noMatch;
 
-		console.log('------------------------------------------------');
-		list.forEach(conn => console.log('>>>>', conn[1].name, conn[1].connected, conn[1].failed, conn[1].connFail, conn[1].available));
 		list.sort((c1, c2) => c1[2] - c2[2]);
 		return list[0];
 	}

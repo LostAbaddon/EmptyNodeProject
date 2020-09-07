@@ -356,6 +356,10 @@ const loadResponseFile = (path, filepath) => {
 		}
 	});
 
+	var lastMode = ResponsorMap[url];
+	if (!lastMode) lastMode = Config.defaultMode;
+	else lastMode = lastMode.mode || Config.defaultMode;
+
 	var res = require(filepath);
 	if (!res || !res.responsor || (filepath.indexOf(NonAPIModulePrefix) === 0)) return;
 
@@ -381,7 +385,21 @@ const loadResponseFile = (path, filepath) => {
 	res.responsor._url = url;
 	res.mode = res.mode || Config.defaultMode;
 	res.responsor.mode = res.mode;
-	if (res.mode === 'tx_thread_pool') ThreadManager.setupTxPool(url, filepath);
+
+	if (!global.isDelegator && (!global.isMultiProcess || global.isSlaver)) {
+		if (res.mode === 'tx_thread_pool') {
+			if (lastMode === 'cm_thread_pool') ThreadManager.closeCmPool(url, filepath);
+			ThreadManager.setupTxPool(url, filepath);
+		}
+		if (res.mode === 'cm_thread_pool') {
+			if (lastMode === 'tx_thread_pool') ThreadManager.closeTxPool(url);
+			ThreadManager.setupCmPool(url, filepath);
+		}
+		else {
+			if (lastMode === 'tx_thread_pool') ThreadManager.closeTxPool(url);
+			else if (lastMode === 'cm_thread_pool') ThreadManager.closeCmPool(url, filepath);
+		}
+	}
 
 	ResponsorMap[url] = res;
 	ResponsorList.push(res);
@@ -592,21 +610,25 @@ const doJob = async (responsor, param, query, url, data, method, source, ip, por
 			}
 		}
 	}
-	if (resume) {
-		if (responsor.mode === 'thread_once') {
-			result = await ThreadManager.runInThread(responsor, param, query, url, data, method, source, ip, port);
-		}
-		else if (responsor.mode === 'tx_thread_pool') {
-			result = await ThreadManager.runInTxThread(responsor, param, query, url, data, method, source, ip, port);
-		}
-		else {
-			result = await responsor(param, query, url, data, method, source, ip, port);
-		}
-		if (Config.postprocessor.length > 0) {
-			for (let pro of Config.postprocessor) {
-				let r = await pro(result, param, query, url, data, method, source, ip, port);
-				if (!!r) break;
-			}
+	if (!resume) return result;
+
+	if (responsor.mode === 'thread_once') {
+		result = await ThreadManager.runInThread(responsor, param, query, url, data, method, source, ip, port);
+	}
+	else if (responsor.mode === 'tx_thread_pool') {
+		result = await ThreadManager.runInTxThread(responsor, param, query, url, data, method, source, ip, port);
+	}
+	else if (responsor.mode === 'cm_thread_pool') {
+		result = await ThreadManager.runInCmThread(responsor, param, query, url, data, method, source, ip, port);
+	}
+	else {
+		result = await responsor(param, query, url, data, method, source, ip, port);
+	}
+
+	if (Config.postprocessor.length > 0) {
+		for (let pro of Config.postprocessor) {
+			let r = await pro(result, param, query, url, data, method, source, ip, port);
+			if (!!r) break;
 		}
 	}
 	return result;
