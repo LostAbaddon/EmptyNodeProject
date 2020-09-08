@@ -267,6 +267,9 @@ class DealerPool {
 		if (this.state === DealerPool.State.DYING || this.state === DealerPool.State.DIED) return 0;
 		return this.#members.length;
 	}
+	get memberList () {
+		return this.#members.copy();
+	}
 }
 DealerPool.State = Dealer.State
 

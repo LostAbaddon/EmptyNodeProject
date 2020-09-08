@@ -85,3 +85,4 @@ module.exports = {
 	create: createPersonel,
 	check: checkKeyID,
 };
+_('Core.Personel', module.exports);

@@ -47,6 +47,7 @@ Errors.RuntimeError.SubProcessBrokenDown = new BlackHole("子进程离线", "RTM
 Errors.RuntimeError.ResponsorModuleMissing = new BlackHole("响应模块缺失", "RTM-00003", "ResponsorModuleMissing");
 Errors.RuntimeError.NoRegisteredThread = new BlackHole("无业务相关注册线程", "RTM-00004", "NoRegisteredThread");
 Errors.RuntimeError.RequestTimeout = new BlackHole("工作线程响应请求超时", "RTM-00005", "RequestTimeout");
+Errors.RuntimeError.EmptyResponse = new BlackHole("响应为空", "RTM-00006", "EmptyResponse");
 
 Errors.GalanetError = {};
 Errors.GalanetError.ShakehandFailed = new BlackHole("Galanet握手失败", "GLN-00001", "ShakehandFailed");

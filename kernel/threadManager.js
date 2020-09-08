@@ -410,3 +410,4 @@ module.exports = {
 	runInTxThread,
 	runInCmThread,
 };
+_('Utils.ThreadManager', module.exports);

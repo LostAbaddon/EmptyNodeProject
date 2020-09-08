@@ -262,6 +262,9 @@ class UserNode extends Dealer {
 		});
 		return count;
 	}
+	get connList () {
+		return this.#pool.memberList;
+	}
 	static Limit = 10;
 	static Initial = 10;
 }
@@ -550,6 +553,14 @@ const launchTask = (responsor, param, query, url, data, method, source, ip, port
 		param.originSource = source;
 		result = await sendRequest(conn, method, url, param);
 	}
+	if (!result) {
+		let err = new Errors.RuntimeError.EmptyResponse('业务请求: ' + sendInfo + '; 请求者: ' + sender);
+		result = {
+			ok: false,
+			code: err.code,
+			message: err.message
+		};
+	}
 
 	// 记录请求结果
 	node.finish(task, result.ok);
@@ -765,6 +776,15 @@ const sendRequest = (node, method, path, message) => new Promise(res => {
 		}
 	}
 });
+const broadcast = (msg, toAll) => {
+	Logger.log('广播(' + (toAll ? '全网' : '邻域') + '): ', msg);
+};
+const randomcast = (msg, count=1) => {
+	Logger.log('窄播(' + count + '): ', msg);
+};
+const sendTo = (target, msg) => {
+	Logger.log('发送: ', msg);
+};
 
 const connectNode = node => new Promise(res => {
 	var connect;
@@ -887,6 +907,7 @@ module.exports = {
 	launch: launchTask,
 	getUsage,
 	getNodeInfo,
+	getFriends: () => UserManager.memberList,
 	shutdown,
 	get availableServices () {
 		return Config.services;
@@ -895,3 +916,4 @@ module.exports = {
 		return UserManager.availableCount > 1;
 	}
 };
+_('Core.Galanet', module.exports);

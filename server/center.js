@@ -39,6 +39,19 @@ process.on('console::network::addNode', async (node, event, callback) => {
 process.on('console::network::removeNode', (node, event, callback) => {
 	callback(...Galanet.removeNode(node));
 });
+// 显示友邻
+process.on('console::network::show::friends', (node, event, callback) => {
+	var userList = {};
+	Galanet.getFriends().forEach(user => {
+		userList[user.name] = user.connList.map(conn => {
+			return {
+				name: conn.name,
+				connected: conn.connected
+			};
+		});
+	});
+	callback(userList);
+});
 // 关闭系统
 process.on('console::shutdown', async (isAll, event, callback) => {
 	var msg = '';

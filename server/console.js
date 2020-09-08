@@ -6,6 +6,7 @@ const ConsoleEventTag = 'console::';
 const ConsoleHelp = {
 	stat: 'usage\t\t\t查看各子进程负载情况\ncluster\t\t\t查看 Galanet 中友节点\nall\t\t\t查看全部信息',
 	local: 'refresh\t\t\t重启业务子进程\nset-process\t\t设置业务进程数\nset-concurrence\t\t设置业务进程请求并发数',
+	network: 'friends\t\t\t显示已连接邻点',
 };
 
 const sockets = [];
@@ -98,9 +99,6 @@ const offMessage = (event, callback) => {
 	process.off(ConsoleEventTag + event, callback);
 };
 
-const broadcast = msg => {
-	sockets.forEach(socket => socket.sendData(msg));
-};
 const request = (ipc, commands, callback) => new Promise(res => {
 	pipeServer.client(ipc, 0, commands, (reply, err) => {
 		if (!!callback) callback(reply, err);
@@ -183,6 +181,14 @@ const deal = async (param, config) => {
 				data: cmds.network.node
 			});
 		}
+		if (cmds.network.command.includes('friends')) {
+			cmdList.network = 'friends';
+			req.push({
+				name: 'network',
+				target: cmds.network,
+				event: 'network::show::friends'
+			});
+		}
 	}
 	if (!!cmds.shutdown) {
 		let isAll = !!cmds.shutdown.all;
@@ -208,8 +214,8 @@ const deal = async (param, config) => {
 		for (let item in reply) {
 			let msg = reply[item];
 			if (item === 'stat') {
-				if (cmdList[item] === 'usage') showStatUsage(msg);
-				else if (cmdList[item] === 'cluster') showStatNetwork(msg);
+				if (cmdList.stat === 'usage') showStatUsage(msg);
+				else if (cmdList.stat === 'cluster') showStatNetwork(msg);
 			}
 			else if (item === 'stat:usage') {
 				result.stat = result.stat || {};
@@ -230,7 +236,7 @@ const deal = async (param, config) => {
 				}
 			}
 			else if (item === 'network') {
-				let order = cmdList[item];
+				let order = cmdList.network;
 				if (order === 'addNode') {
 					if (msg.ok) {
 						console.log(msg.data);
@@ -247,8 +253,11 @@ const deal = async (param, config) => {
 						console.error('移除节点失败（错误号 ' + msg.code + '）: ' + msg.message);
 					}
 				}
+				else if (order === 'friends') {
+					showFriends(msg.data);
+				}
 				else {
-					console.log(cmdList[item] + ':', msg);
+					console.log(order + ':', msg);
 				}
 			}
 			else if (item === 'shutdown') {
@@ -344,13 +353,20 @@ const showStatAll = data => {
 	console.log('--------------------------------------------------');
 	showStatNetwork(data.cluster);
 };
+const showFriends = list => {
+	for (let user in list) {
+		console.log(setStyle('友机ID: ' + user, 'friends'));
+		list[user].forEach(conn => {
+			console.log('    ' + conn.name + ' (' + (conn.connected ? '已连接' : '未连接') + ')');
+		});
+	}
+};
 
 module.exports = {
 	create: createServer,
 	on: onMessage,
 	once: onceMessage,
 	off: offMessage,
-	broadcast,
 	deal,
 	request
 };

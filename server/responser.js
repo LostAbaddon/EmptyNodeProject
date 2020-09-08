@@ -709,3 +709,4 @@ module.exports = {
 		return WorkerPool.count;
 	}
 };
+_('Core.Responsor', module.exports);
