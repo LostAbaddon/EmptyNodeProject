@@ -1,6 +1,7 @@
 const Path = require('path');
 const Process = require('child_process');
 const Galanet = require('./galanet');
+const MsgBus = require('./msgBus');
 const Watcher = require('../kernel/watcher');
 const Personel = require('./personel');
 const newLongID = _('Message.newLongID');
@@ -46,7 +47,7 @@ class TxWorker extends Dealer {
 
 		var worker = Process.fork(Path.join(__dirname, './subprocess.js'));
 		this.#id = worker.pid;
-		worker.on('message', msg => {
+		worker.on('message', async msg => {
 			if (msg.event === 'online') {
 				worker.send({
 					event: 'initial',
@@ -83,8 +84,37 @@ class TxWorker extends Dealer {
 			else if (msg.event === 'extinct') {
 				extinctSlavers();
 			}
+			// 系统内部进程间通讯
+			else if (msg.event === 'broadcast') {
+				let [count, task] = await Galanet.broadcast(msg.data.msg, msg.data.toAll, msg.id);
+				worker.send({
+					event: 'cast_done',
+					id: msg.id,
+					count, task
+				});
+			}
+			else if (msg.event === 'narrowcast') {
+				let [count, task] = await Galanet.narrowcast(msg.data.msg, msg.data.count, msg.id);
+				worker.send({
+					event: 'cast_done',
+					id: msg.id,
+					count, task
+				});
+			}
+			else if (msg.event === 'directcast') {
+				let [count, task] = await Galanet.sendTo(msg.data.target, msg.data.msg, msg.id);
+				worker.send({
+					event: 'cast_done',
+					id: msg.id,
+					count, task
+				});
+			}
+			// 收到广播信息
+			else if (msg.event === 'galanet::message') {
+				process.emit('galanet::message', msg.type, msg.sender, msg.msg);
+			}
 			else {
-				Logger.log('MainProcess::Message', msg);
+				Logger.log('MainProcess::OnMessage', msg);
 			}
 		});
 		worker.on('exit', code => {
@@ -509,7 +539,28 @@ const launchResponsor = (responsor, param, query, url, data, method, source, ip,
 	if (url.indexOf('/galanet/') === 0) {
 		if (Galanet.check(ip)) {
 			Logger.log("Galanet请求(" + sender + "): " + sendInfo + '; Q: ' + JSON.stringify(query) + '; P: ' + JSON.stringify(param));
-			result = await launchLocalResponsor(responsor, param, query, url, data, method, source, ip, port);
+			if (url === '/galanet/message' || url.indexOf('/galanet/message/') === 0) {
+				if (!!param.mid) {
+					if (MsgBus.hasMsgRecord(param.mid)) {
+						let err = new Errors.GalanetError.DuplicatedMessage('MessageID: ' + param.mid);
+						result = {
+							ok: false,
+							code: err.code,
+							message: err.message
+						};
+					}
+					else {
+						MsgBus.addMsgRecord(param.mid);
+						result = await launchLocalResponsor(responsor, param, query, url, data, method, source, ip, port);
+					}
+				}
+				else {
+					result = await launchLocalResponsor(responsor, param, query, url, data, method, source, ip, port);
+				}
+			}
+			else {
+				result = await launchLocalResponsor(responsor, param, query, url, data, method, source, ip, port);
+			}
 		}
 		else {
 			Logger.error("未授权的Galanet请求(" + sender + "): " + sendInfo);

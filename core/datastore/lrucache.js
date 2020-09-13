@@ -14,7 +14,7 @@ class LRUCache {
 	#secondary;
 	#limit;
 	#length;
-	constructor (limit=100) {
+	constructor (limit=DefaultSize) {
 		this.#cache = new Map();
 		this.#secondary = new Map();
 		this.#limit = Number.is(limit) ? limit : DefaultSize;
@@ -59,7 +59,7 @@ class LRUCache {
 
 class LRUCacheWithDatastore extends LRUCache {
 	#ds;
-	constructor (limit=100, ds) {
+	constructor (limit=DefaultSize, ds) {
 		super(limit);
 		this.#ds = ds || new Map();
 	}

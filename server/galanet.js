@@ -5,8 +5,11 @@ const TCP = require('../kernel/tcp');
 const UDP = require('../kernel/udp');
 const { Dealer, DealerPool } = require('../kernel/dealer');
 const Personel = require('./personel');
+const MsgBus = require('./msgBus');
+const newLongID = _('Message.newLongID');
 const Shakehand = _('Message.Shakehand');
 const Logger = new (_("Utils.Logger"))('Galanet');
+const LRUCache = _('DataStore.LRUCache');
 var ResponsorManager;
 
 const ReshakeInterval = 1000 * 60; // 每过一分钟自动重连一次
@@ -14,6 +17,7 @@ const AvailableSource = [ 'tcp', 'udp', 'http' ];
 const Config = {
 	prefix: '',
 	services: [],
+	fastServices: new LRUCache(100),
 	timeout: 10000,
 };
 const Pending = [];
@@ -124,6 +128,7 @@ class UserNode extends Dealer {
 	isDelegator = false;
 	#services = new Set(); // 对方接受的服务类型
 	#pool = new DealerPool(RichAddress);
+	#availableConnCount = -1;
 	constructor (name) {
 		super();
 		this.state = Dealer.State.READY;
@@ -137,6 +142,7 @@ class UserNode extends Dealer {
 		else if (!(conn instanceof RichAddress)) return;
 		if (!conn || conn.isEmpty) return;
 
+		this.#availableConnCount = -1;
 		var has = false;
 		this.#pool.forEach(cn => {
 			if (has) return;
@@ -153,6 +159,7 @@ class UserNode extends Dealer {
 		else if (!(conn instanceof RichAddress)) return 0;
 		if (!conn) return 0;
 
+		this.#availableConnCount = -1;
 		var target = [];
 		this.#pool.forEach(cn => {
 			if (cn.equal(conn)) target.push(cn);
@@ -222,7 +229,7 @@ class UserNode extends Dealer {
 
 			var ok = false;
 			for (let f of conn.filter) {
-				if (url.indexOf(f) !== 0) continue;
+				if (!!url && url.indexOf(f) !== 0) continue;
 				ok = true;
 				break;
 			}
@@ -246,6 +253,9 @@ class UserNode extends Dealer {
 		this.#pool.suicide();
 		super.suicide();
 	}
+	resetConnInfo () {
+		this.#availableConnCount = -1;
+	}
 	get services () {
 		if (this.state === DealerPool.State.DYING || this.state === DealerPool.State.DIED) return null;
 		if (this.#services instanceof Set) return [...this.#services];
@@ -255,11 +265,13 @@ class UserNode extends Dealer {
 		return this.#pool.count;
 	}
 	get availableCount () {
+		if (this.#availableConnCount >= 0) return this.#availableConnCount;
 		var count = 0;
 		this.#pool.forEach(conn => {
 			if (conn.isEmpty || !conn.connected) return;
 			count ++;
 		});
+		this.#availableConnCount = count;
 		return count;
 	}
 	get connList () {
@@ -270,6 +282,8 @@ class UserNode extends Dealer {
 }
 class UserPool extends DealerPool {
 	waitingConns = [];
+	fastIPs = new LRUCache(20);
+	#availableConnCount = -1;
 	constructor () {
 		super(UserNode);
 		this.state = DealerPool.State.READY;
@@ -296,6 +310,8 @@ class UserPool extends DealerPool {
 			}
 			mem.addConn(conn);
 		}
+		this.#availableConnCount = -1;
+		this.fastIPs.clear();
 	}
 	removeConn (conn) {
 		var deleted = 0;
@@ -310,6 +326,8 @@ class UserPool extends DealerPool {
 		this.forEach(m => {
 			deleted += m.removeConn(conn);
 		});
+		this.#availableConnCount = -1;
+		this.fastIPs.clear();
 		return deleted;
 	}
 	pickConn (url) {
@@ -381,12 +399,17 @@ class UserPool extends DealerPool {
 		});
 		return has;
 	}
+	resetConnInfo () {
+		this.#availableConnCount = -1;
+	}
 	get availableCount () {
+		if (this.#availableConnCount >= 0) return this.#availableConnCount;
 		var count = 0;
 		this.forEach(user => {
 			if (user.name === 'local') return;
 			count += user.availableCount;
 		});
+		this.#availableConnCount = count;
 		return count;
 	}
 }
@@ -465,16 +488,28 @@ const reshakehand = ip => {
 	}, 1000));
 };
 const checkIP = ip => {
-	if (ip === '0.0.0.0' || ip === '::' || ip === '127.0.0.1' || ip === '::ffff:127.0.0.1' || ip === '::1') return true;
+	var has = UserManager.fastIPs.get(ip);
+	if (has !== undefined) return has;
+	if (ip === '0.0.0.0' || ip === '::' || ip === '127.0.0.1' || ip === '::ffff:127.0.0.1' || ip === '::1') {
+		UserManager.fastIPs.set(ip, true);
+		return true;
+	}
+	var oip = ip;
 	var reg = ip.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
 	if (!!reg) ip = reg[1];
-	return UserManager.hasHost(ip);
+	has = UserManager.hasHost(ip);
+	UserManager.fastIPs.set(oip, has);
+	return has;
 }
 const checkService = url => {
 	if (!Config.services || Config.services.length === 0) return true;
-	url = url.split('/').filter(f => f.trim().length > 0)[0];
-	if (!url) return false;
-	return Config.services.includes(url);
+	var has = Config.fastServices.get(url);
+	if (has !== undefined) return has;
+	var service = url.split('/').filter(f => f.trim().length > 0)[0];
+	if (!service) has = false;
+	else has = Config.services.includes(service);
+	Config.fastServices.set(url, has);
+	return has;
 };
 const launchTask = (responsor, param, query, url, data, method, source, ip, port, callback) => new Promise(async res => {
 	var sender = (!!param.originSource || !!param.originHost + !!param.originPort)
@@ -572,6 +607,8 @@ const launchTask = (responsor, param, query, url, data, method, source, ip, port
 			Logger.error(conn.name + ' : 本机不在目标友机集群序列中');
 			conn.connFail ++;
 			if (conn.connFail > 3) {
+				UserManager.resetConnInfo();
+				node.resetConnInfo();
 				conn.connected = false;
 			}
 			await waitLoop();
@@ -594,6 +631,8 @@ const launchTask = (responsor, param, query, url, data, method, source, ip, port
 			Logger.error('请求响应超时: ' + result.message);
 			conn.connFail ++;
 			if (conn.connFail > 3) {
+				UserManager.resetConnInfo();
+				node.resetConnInfo();
 				conn.connected = false;
 			}
 			await waitLoop();
@@ -602,6 +641,8 @@ const launchTask = (responsor, param, query, url, data, method, source, ip, port
 		else if (result.code === "ETIMEDOUT" || result.code === 'ECONNREFUSED' || result.code === Errors.ServerError.ConnectRemoteFailed.code) {
 			Logger.error(conn.name + ' : 目标友机疑似离线');
 			conn.connFail = 3;
+			UserManager.resetConnInfo();
+			node.resetConnInfo();
 			conn.connected = false;
 			await waitLoop();
 			result = await launchTask(responsor, param, query, url, data, method, source, ip, port);
@@ -733,6 +774,16 @@ const shutdown = all => new Promise(async res => {
 	res(list.length);
 });
 
+const MainProcessTasks = new Map();
+const sendToMainProcess = (event, id, data) => new Promise(res => {
+	var reses = MainProcessTasks.get(id);
+	if (!reses) {
+		reses = [];
+		MainProcessTasks.set(id, reses);
+	}
+	reses.push(res);
+	process.send({event, id, data});
+});
 const sendRequest = (node, method, path, message) => new Promise(res => {
 	var finished = false;
 	var cb = (result, err) => {
@@ -776,14 +827,109 @@ const sendRequest = (node, method, path, message) => new Promise(res => {
 		}
 	}
 });
-const broadcast = (msg, toAll) => {
-	Logger.log('广播(' + (toAll ? '全网' : '邻域') + '): ', msg);
+const broadcast = async (msg, toAll, mid) => {
+	if (global.isSlaver) {
+		return await sendToMainProcess('broadcast', mid, { toAll, msg });
+	}
+
+	mid = mid || newLongID();
+	MsgBus.addMsgRecord(mid);
+
+	var count = 0, task = 0, list = [];
+	UserManager.forEach(user => {
+		if (user.name === 'local') return;
+		var conns = [];
+		user.pickConn().forEach(conn => {
+			if (!conn.connected) return;
+			conns.push(conn);
+		});
+		if (conns.length === 0) return;
+		conns.sort((c1, c2) => c1.energy - c2.energy);
+		list.push(conns[0]);
+	});
+	task = list.length;
+	await Promise.all(list.map(async conn => {
+		await sendRequest(conn, 'post', '/galanet/message', { type: 'broadcast', mid, toAll, data: msg });
+		count ++;
+	}));
+	return [count, task];
 };
-const randomcast = (msg, count=1) => {
-	Logger.log('窄播(' + count + '): ', msg);
+const narrowcast = async (msg, count, mid) => {
+	if (global.isSlaver) {
+		return await sendToMainProcess('narrowcast', mid, { count, msg });
+	}
+
+	mid = mid || newLongID();
+	MsgBus.addMsgRecord(mid);
+
+	var task = 0, list = [];
+	UserManager.forEach(user => {
+		if (user.name === 'local') return;
+
+		var conns = [];
+		user.pickConn().forEach(conn => {
+			if (!conn.connected) return;
+			conns.push(conn);
+		});
+		if (conns.length === 0) return;
+		conns.sort((c1, c2) => c1.energy - c2.energy);
+		list.push(conns[0]);
+	});
+
+	if (count > list.length) count = list.length;
+	list.randomize();
+	list = list.splice(0, count);
+
+	task = list.length;
+	count = 0;
+	await Promise.all(list.map(async conn => {
+		await sendRequest(conn, 'post', '/galanet/message', { type: 'narrowcast', mid, count, data: msg });
+		count ++;
+	}));
+	return [count, task];
 };
-const sendTo = (target, msg) => {
-	Logger.log('发送: ', msg);
+const sendTo = async (target, msg, mid) => {
+	if (global.isSlaver) {
+		return await sendToMainProcess('directcast', mid, { target, msg });
+	}
+
+	mid = mid || newLongID();
+	MsgBus.addMsgRecord(mid);
+
+	var task = 0, conn = null, found = false;
+	UserManager.forEach(user => {
+		if (found) return;
+		if (user.name === 'local') return;
+		if (user.name !== target) return;
+		found = true;
+
+		var conns = [];
+		user.pickConn().forEach(conn => {
+			if (!conn.connected) return;
+			conns.push(conn);
+		});
+		if (conns.length === 0) return;
+		conns.sort((c1, c2) => c1.energy - c2.energy);
+		conn = conns[0];
+	});
+
+	var count = found ? 1 : 0;
+	var done = !!conn ? 1 : 0;
+
+	if (done === 0) return [done, count];
+
+	await sendRequest(conn, 'post', '/galanet/message', { type: 'directcast', mid, data: msg });
+	return [done, count];
+};
+const castDone = (mid, success, total) => {
+	var reses = MainProcessTasks.get(mid);
+	if (!reses) return;
+	var list = reses.copy();
+	reses.clear();
+	MainProcessTasks.delete(mid);
+	for (let res of list) {
+		res([success, total]);
+	}
 };
 
 const connectNode = node => new Promise(res => {
@@ -843,6 +989,8 @@ const connectNode = node => new Promise(res => {
 		else user.addService(info.services);
 		user.pubkey = info.pubkey;
 		user.isDelegator = !!info.delegator;
+		UserManager.resetConnInfo();
+		user.resetConnInfo();
 		Logger.info('连接' + node.name + '成功！');
 		res();
 	});
@@ -905,6 +1053,10 @@ module.exports = {
 	check: checkIP,
 	checkService,
 	launch: launchTask,
+	broadcast,
+	narrowcast,
+	sendTo,
+	castDone,
 	getUsage,
 	getNodeInfo,
 	getFriends: () => UserManager.memberList,
@@ -913,7 +1065,7 @@ module.exports = {
 		return Config.services;
 	},
 	get isInGroup () {
-		return UserManager.availableCount > 1;
+		return UserManager.availableCount > 0;
 	}
 };
 _('Core.Galanet', module.exports);

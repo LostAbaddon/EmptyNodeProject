@@ -2,6 +2,7 @@ global.noEventModules = true;
 
 const Path = require('path');
 require("../core");
+loadall(__dirname, "../core/datastore");
 loadall(__dirname, "../kernel", false);
 const ResponsorManager = require('./responser');
 const ThreadManager = require('../kernel/threadManager');
@@ -98,6 +99,9 @@ process.on('message', async msg => {
 	}
 	else if (msg.event === 'task') {
 		doTask(msg.id, msg.responsor, msg.data);
+	}
+	else if (msg.event === 'cast_done') {
+		Galanet.castDone(msg.id, msg.count, msg.task);
 	}
 	else if (msg.event === 'suicide') {
 		process.exit();

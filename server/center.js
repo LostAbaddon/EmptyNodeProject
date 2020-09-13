@@ -75,3 +75,9 @@ process.on('console::shutdown', async (isAll, event, callback) => {
 	}, 100);
 	callback(msg);
 });
+
+// 广播
+process.on('galanet::message', (msgType, sender, msg) => {
+	sender = sender.protocol + '/' + sender.host + '/' + sender.port;
+	Logger.log('Got Galanet ' + msgType + ' Message from ' + sender + ' : ' + JSON.stringify(msg));
+});

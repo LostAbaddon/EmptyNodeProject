@@ -61,6 +61,9 @@ Errors.GalanetError.Unauthorized = new BlackHole("无权限调用本接口", "GL
 Errors.GalanetError.WrongQuestPath = new BlackHole("无效的请求路径", "GLN-00009", "WrongQuestPath");
 Errors.GalanetError.QuestDelegator = new BlackHole("网关收到请求", "GLN-00010", "QuestDelegator");
 Errors.GalanetError.RequestTimeout = new BlackHole("集群响应请求超时", "GLN-00011", "RequestTimeout");
+Errors.GalanetError.WrongMessageType = new BlackHole("集群通讯类型错误", "GLN-00012", "WrongMessageType");
+Errors.GalanetError.DuplicatedMessage = new BlackHole("重复的信息", "GLN-00013", "DuplicatedMessage");
+Errors.GalanetError.SendMessageFailed = new BlackHole("发送信息失败", "GLN-00014", "SendMessageFailed");
 
 Errors.Quark = {};
 Errors.Quark.DefaultPackerError = new BlackHole("不可用默认打包器", "QRK-000001", "DefaultPackerError");

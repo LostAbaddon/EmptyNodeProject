@@ -2,6 +2,7 @@ global.noEventModules = true;
 
 const Path = require('path');
 require("./core");
+loadall(__dirname, "./core/datastore");
 loadall(__dirname, "./core/commandline");
 loadall(__dirname, "./kernel", false);
 require('./server/center');
