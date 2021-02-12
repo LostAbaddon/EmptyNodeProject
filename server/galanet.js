@@ -931,6 +931,9 @@ const castDone = (mid, success, total) => {
 		res([success, total]);
 	}
 };
+const sendMessage = async (msg, option) => {
+	console.log(msg, option);
+};
 
 const connectNode = node => new Promise(res => {
 	var connect;
@@ -1053,6 +1056,7 @@ module.exports = {
 	check: checkIP,
 	checkService,
 	launch: launchTask,
+	sendMessage,
 	broadcast,
 	narrowcast,
 	sendTo,

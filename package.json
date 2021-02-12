@@ -1,5 +1,5 @@
 {
-	"name": "EmptyNodeProject",
+	"name": "Einstein",
 	"description": "空NodeJS项目库，实现HTTP(s)、TCP、UDP、pipe等多种接入，支持多线程、多进程和多节点相应与自动负载均衡。",
 	"version": "0.2.0",
 	"dependencies": {

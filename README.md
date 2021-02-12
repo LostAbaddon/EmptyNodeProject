@@ -1,6 +1,6 @@
-# Empty Node.JS Project
+# Einstein 项目
 
-空 Node.JS 项目。
+这是一个空的 Node.JS 框架项目，只提供服务框架，和具体业务无关。
 
 这里包含基础 Node.JS 代码库，可用于 Web（含 WebSocket）、TCP、UDP、Socket 的连接，支持多节点、多进程与多线程。withDB 分支更支持 MySQL、Redis、SimpleCachedTable 等基础功能。
 
@@ -131,6 +131,7 @@ Galanet 是内网系统，节点之间彼此信任；Ising 是外网系统，通
 -	withDB分支：SCT增加空值检测机制以防止缓存穿透攻击 (working)
 -	withDB分支：SCT增加业务队列，避免缓存击穿和雪崩 (working)
 -	withDB分支：SCT增加缓存预备锁，避免缓存击穿和雪崩 (working)
+-	主分支：所有接入口都采用独立进程/线程
 -	主分支：增加 Ising 协议，用于分布式共识
 -	主分支：支持根据任务类型进行多节点任务调配，而非统一任务调配
 -	主分支：多节点数据用socket中转而非读取后写出到端
