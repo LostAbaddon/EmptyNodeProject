@@ -29,7 +29,7 @@ module.exports = (options, callback) => {
 	}
 	else if (!!options.page) {
 		let option = {maxage: 1000 * 60};
-		if (!!option.page.maxage) option.maxage = option.page.maxage;
+		if (!!options.page.maxage) option.maxage = options.page.maxage;
 		app.use(KoaStatic(Path.join(process.cwd(), options.page.path), option));
 	}
 

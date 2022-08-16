@@ -40,18 +40,25 @@ const createServer = (config, options) => {
 	if (Array.is(options)) options.forEach(opt => clp.addOption(opt));
 
 	clp.on('command', async (param, command) => {
-		var cfg = param.config || './config.json';
+		var cfg = param.config || config.cfgPath || './config.json';
 		if (!!cfg) {
-			cfg = Path.join(process.cwd(), cfg);
+			if (cfg.substr(0, 1) === '.') {
+				cfg = Path.join(process.cwd(), cfg);
+			}
 			try {
 				cfg = require(cfg);
 				if (!!config.config) cfg = Object.assign(config.config.duplicate(), cfg);
 			}
 			catch (err) {
-				console.log(err);
 				if (!!config.config) cfg = config.config.duplicate();
 				else cfg = { port: {} };
 			}
+		}
+		else if (!!config.config) {
+			cfg = config.config.duplicate();
+		}
+		else {
+			cfg = { port: {} };
 		}
 		if (Number.is(param.port)) cfg.port.http = param.port;
 		if (Number.is(param.secure)) cfg.port.https = param.secure;
