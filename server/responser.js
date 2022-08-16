@@ -487,10 +487,10 @@ const loadResponsors = async (path, monitor=true) => {
 const matchResponsor = (url, method, source) => {
 	var res = ResponsorMap[url], query = {}, didMatch = false;
 	if (!!res) {
-		if (res.sources === null || (!!res.sources.includes && res.sources.includes(source))) didMatch = true;
+		if (res.sources === null || res.sources === 'all' || res.sources === source || (!!res.sources.includes && (res.sources.includes(source) || res.sources.includes('all')))) didMatch = true;
 		if (didMatch) {
 			didMatch = false;
-			if (res.methods === null || (!!res.methods.includes && res.methods.includes(method))) didMatch = true;
+			if (res.methods === null || res.methods === 'all' || res.methods === method || (!!res.methods.includes && (res.methods.includes(method) || res.methods.includes('all')))) didMatch = true;
 			if (didMatch) {
 				let resp = res.responsor;
 				resp.mode = res.mode;
@@ -514,6 +514,19 @@ const matchResponsor = (url, method, source) => {
 				if (url[i] !== qi.name) return;
 			}
 		}
+
+		if (r.sources === null || r.sources === 'all' || r.sources === source || (!!r.sources.includes && (r.sources.includes(source) || r.sources.includes('all')))) didMatch = true;
+		if (didMatch) {
+			didMatch = false;
+			if (r.methods === null || r.methods === 'all' || r.methods === method || (!!r.methods.includes && (r.methods.includes(method) || r.methods.includes('all')))) didMatch = true;
+			if (!didMatch) {
+				return;
+			}
+		}
+		else {
+			return;
+		}
+
 		res = r.responsor;
 		res.mode = r.mode || Config.defaultMode;
 		query = qry;
@@ -526,7 +539,7 @@ const matchResponsor = (url, method, source) => {
 
 	return [res, query];
 };
-const launchResponsor = (responsor, param, query, url, data, method, source, ip, port) => new Promise(async res => {
+const launchResponsor = async (responsor, param, query, url, data, method, source, ip, port) => {
 	if (processStat !== ProcessStat.READY) return;
 
 	var result;
@@ -613,8 +626,9 @@ const launchResponsor = (responsor, param, query, url, data, method, source, ip,
 			}
 		}
 	}
-	res(result);
-});
+
+	return result;
+};
 const launchLocalResponsor = async (responsor, param, query, url, data, method, source, ip, port) => {
 	var result;
 	if (!isMultiProcess) {
@@ -638,10 +652,21 @@ const launchLocalResponsor = async (responsor, param, query, url, data, method, 
 		TaskInfo.power = (TaskInfo.energy * 2 + time) / 3;
 	}
 	else {
+		// 如果发送到非fork进程或当前进程时，data中的数据可能会导致发送出错，所以这里需要clearcopy为纯JSON对象
+		let copy;
+		data = data || {};
+		try {
+			copy = JSON.parse(JSON.stringify(data));
+		}
+		catch {
+			copy = data.clearCopy();
+		}
+		data = copy;
+	
 		result = await WorkerPool.launchTask({
 			tid: newLongID(),
 			responsor: responsor._url,
-			data: { param, query, url, data: {}, method, source, ip, port },
+			data: { param, query, url, data, method, source, ip, port },
 			stamp: now()
 		});
 	}

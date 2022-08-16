@@ -87,7 +87,7 @@ const createServer = (config, options) => {
 			global.processStat = global.ProcessStat.DEAD;
 			let err = new Errors.ConfigError.NoResponsor();
 			logger.error(err.message);
-			logger.error(config.welcome.failed);
+			if (!!config.welcome?.failed) logger.error(config.welcome.failed);
 			process.exit();
 			return;
 		}
@@ -110,7 +110,7 @@ const createServer = (config, options) => {
 			if (count !== 0) return;
 			if (success === 0) {
 				global.processStat = global.ProcessStat.DEAD;
-				logger.error(config.welcome.failed);
+				if (!!config.welcome?.failed) logger.error(config.welcome.failed);
 				process.exit();
 				return;
 			}
@@ -139,7 +139,7 @@ const createServer = (config, options) => {
 				await Promise.all(list.map(async cb => await cb(Core, param, cfg)));
 
 				global.processStat = global.ProcessStat.READY;
-				logger.log(config.welcome.success);
+				if (!!config.welcome?.success) logger.log(config.welcome.success);
 			});
 		};
 
@@ -157,17 +157,19 @@ const createServer = (config, options) => {
 		});
 
 		// 启动 TCP / UDP 服务器
-		count ++;
-		tasks.socket = false;
-		socketServer(cfg, error => {
-			if (error instanceof Error) {
-				logger.error('Launch Socket-Server Failed: ' + error.message);
-				cb('socket', false);
-			}
-			else {
-				cb('socket', true);
-			}
-		});
+		if (!!cfg.port && (!!cfg.port.tcp || !!cfg.port.pipe || !!cfg.port.udp4 || !!cfg.port.udp6)) {
+			count ++;
+			tasks.socket = false;
+			socketServer(cfg, (error) => {
+				if (error instanceof Error) {
+					logger.error('Launch Socket-Server Failed.');
+					cb('socket', false);
+				}
+				else {
+					cb('socket', true);
+				}
+			});
+		}
 
 		if (!!cfg.console) {
 			count ++;

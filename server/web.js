@@ -22,7 +22,16 @@ module.exports = (options, callback) => {
 	}
 
 	// Static Resources
-	if (String.is(options.page)) app.use(KoaStatic(Path.join(process.cwd(), options.page)));
+	if (String.is(options.page)) {
+		app.use(KoaStatic(Path.join(process.cwd(), options.page), {
+			maxage: 1000 * 60
+		}));
+	}
+	else if (!!options.page) {
+		let option = {maxage: 1000 * 60};
+		if (!!option.page.maxage) option.maxage = option.page.maxage;
+		app.use(KoaStatic(Path.join(process.cwd(), options.page.path), option));
+	}
 
 	// For CORS
 	app.use(async (ctx, next) => {
@@ -104,6 +113,7 @@ module.exports = (options, callback) => {
 	var cb = (task, err) => {
 		if (tasks[task]) return;
 		tasks[task] = true;
+		Logger.log(task + ' is ready.');
 
 		count --;
 		if (!!err) {
@@ -129,9 +139,10 @@ module.exports = (options, callback) => {
 			csrOption.cert = FS.readFileSync(Path.join(process.cwd(), options.certification.certificate));
 			ok = true;
 		}
-		catch {
+		catch (err) {
 			Logger.error('Missing CSR key-file.');
 			ok = false;
+			cb('https', err);
 		}
 		if (ok) {
 			tasks.https = false;
