@@ -113,15 +113,15 @@ module.exports = (options, callback) => {
 	var cb = (task, err) => {
 		if (tasks[task]) return;
 		tasks[task] = true;
-		Logger.log(task + ' is ready.');
 
 		count --;
 		if (!!err) {
 			failed ++;
-			Logger.error(err.message);
+			Logger.error(task + ' failed: ' + err.message);
 		}
 		else {
 			success ++;
+			Logger.log(task + ' is ready.');
 		}
 		if (count > 0) return;
 
@@ -135,14 +135,16 @@ module.exports = (options, callback) => {
 	if (Number.is(options.port.https)) {
 		let csrOption = {}, ok = false;
 		try {
-			csrOption.key = FS.readFileSync(Path.join(process.cwd(), options.certification.privateKey));
-			csrOption.cert = FS.readFileSync(Path.join(process.cwd(), options.certification.certificate));
+			csrOption.key = FS.readFileSync(Path.join(process.cwd(), options.certification?.privateKey));
+			csrOption.cert = FS.readFileSync(Path.join(process.cwd(), options.certification?.certificate));
 			ok = true;
 		}
 		catch (err) {
 			Logger.error('Missing CSR key-file.');
 			ok = false;
-			cb('https', err);
+			setImmediate(() => {
+				cb('https', err);
+			});
 		}
 		if (ok) {
 			tasks.https = false;
