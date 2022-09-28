@@ -27,10 +27,24 @@ module.exports = (options, callback) => {
 			maxage: 1000 * 60
 		}));
 	}
+	else if (Array.is(options.page)) {
+		options.page.forEach(path => {
+			app.use(KoaStatic(Path.join(process.cwd(), path), {
+				maxage: 1000 * 60
+			}));
+		});
+	}
 	else if (!!options.page) {
 		let option = {maxage: 1000 * 60};
 		if (!!options.page.maxage) option.maxage = options.page.maxage;
-		app.use(KoaStatic(Path.join(process.cwd(), options.page.path), option));
+		if (String.is(options.page.path)) {
+			app.use(KoaStatic(Path.join(process.cwd(), options.page.path), option));
+		}
+		else if (Array.is(options.page.path)) {
+			options.page.path.forEach(path => {
+				app.use(KoaStatic(Path.join(process.cwd(), path), option));
+			});
+		}
 	}
 
 	// For CORS
