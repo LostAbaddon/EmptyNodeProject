@@ -24,6 +24,8 @@ const init = (server) => {
 		socket.on('__message__', async msg => {
 			var event = msg.event, data = msg.data, action = msg.action || 'get';
 			if (Object.isBasicType(data)) data = {content: data};
+			var tid = -1;
+			if (!!msg.id) tid = msg.id;
 			var [res, query] = ResponsorManager.match(event, action, 'socket');
 			if (!!res) {
 				let result = null;
@@ -31,10 +33,10 @@ const init = (server) => {
 					let remoteIP = socket.request.connection.remoteAddress;
 					if (!!remoteIP.match(/::ffff:(\d+\.\d+\.\d+\.\d+)/)) remoteIP = remoteIP.replace('::ffff:', '');
 					result = await ResponsorManager.launch(res, data, query, event, socket, action, 'socket', remoteIP, 0);
-					socket.send(event, result);
+					socket.send(tid, event, result);
 				}
 				catch (err) {
-					socket.send(event, {
+					socket.send(tid, event, {
 						ok: false,
 						code: err.code || 500,
 						message: err.message
@@ -47,11 +49,11 @@ const init = (server) => {
 				eventLoop.emit(event, data, socket, msg);
 			}
 			else if (!res) {
-				socket.send(event, null, 'Non-Listener Request');
+				socket.send(tid, event, null, 'Non-Listener Request');
 			}
 		});
-		socket.send = (event, data, err) => {
-			socket.emit('__message__', { event, data, err });
+		socket.send = (id, event, data, err) => {
+			socket.emit('__message__', { id, event, data, err });
 		};
 		eventLoop.emit('connected', null, socket);
 	});
@@ -66,7 +68,7 @@ const unregister = (event, responser) => {
 const broadcast = (event, data) => {
 	sockets.forEach(socket => {
 		if (!socket) return;
-		socket.send(event, data);
+		socket.send(-1, event, data);
 	});
 };
 
