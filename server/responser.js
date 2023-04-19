@@ -483,6 +483,31 @@ const loadResponsors = async (path, monitor=true) => {
 
 	list.forEach(filepath => loadResponseFile(path, filepath));
 };
+const getContext = (ctx, source) => {
+	var data = {};
+	if (source === 'web') {
+		data = ctx.request;
+	}
+	else if (source === 'socket') {
+		data = {
+			id: ctx.id,
+			rooms: ctx.rooms,
+			handshake: ctx.handshake,
+		};
+	}
+	else {
+		data = ctx;
+	}
+
+	var copy;
+	try {
+		copy = JSON.parse(JSON.stringify(data));
+	}
+	catch {
+		copy = data.clearCopy();
+	}
+	return copy;
+};
 
 const matchResponsor = (url, method, source) => {
 	var res = ResponsorMap[url], query = {}, didMatch = false;
@@ -653,15 +678,7 @@ const launchLocalResponsor = async (responsor, param, query, url, data, method, 
 	}
 	else {
 		// 如果发送到非fork进程或当前进程时，data中的数据可能会导致发送出错，所以这里需要clearcopy为纯JSON对象
-		let copy;
-		data = data || {};
-		try {
-			copy = JSON.parse(JSON.stringify(data));
-		}
-		catch {
-			copy = data.clearCopy();
-		}
-		data = copy;
+		data = getContext(data, source);
 	
 		result = await WorkerPool.launchTask({
 			tid: newLongID(),
