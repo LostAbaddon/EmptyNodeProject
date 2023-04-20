@@ -153,7 +153,8 @@ const createServer = (config, options) => {
 		// 启动 Web 服务器
 		count ++;
 		tasks.web = false;
-		webServer(cfg, error => {
+		webServer(cfg, async error => {
+			await wait();
 			if (error instanceof Error) {
 				logger.error('Launch Web-Server Failed: ' + error.message);
 				cb('web', false);
@@ -167,7 +168,8 @@ const createServer = (config, options) => {
 		if (!!cfg.port && (!!cfg.port.tcp || !!cfg.port.pipe || !!cfg.port.udp4 || !!cfg.port.udp6)) {
 			count ++;
 			tasks.socket = false;
-			socketServer(cfg, (error) => {
+			socketServer(cfg, async error => {
+				await wait();
 				if (error instanceof Error) {
 					logger.error('Launch Socket-Server Failed.');
 					cb('socket', false);
@@ -183,7 +185,8 @@ const createServer = (config, options) => {
 			tasks.console = false;
 			let ipc = cfg.console;
 			if (!String.is(ipc)) ipc = DefailtIPC;
-			consoleServer.create(clp, ipc, err => {
+			consoleServer.create(clp, ipc, async err => {
+				await wait();
 				if (err instanceof Error) {
 					logger.error('Launch Console-Server Failed: ' + err.message);
 					cb('console', false);
