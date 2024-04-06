@@ -209,7 +209,7 @@ const createServer = (config, options) => {
 
 	return clp;
 };
-const createConsole = (config) => {
+const createConsole = (config, options) => {
 	global.processStat = global.ProcessStat.INIT;
 
 	const clp = CLP({
@@ -229,8 +229,11 @@ const createConsole = (config) => {
 	.setParam('[...command] >> 操作项')
 	.addOption('--list -l >> 查看可用参数')
 	.add('shutdown >> 关闭节点')
-	.addOption('--all >> 通知集群节点关闭')
-	.on('command', (param, command) => {
+	.addOption('--all >> 通知集群节点关闭');
+
+	if (Array.is(options)) options.forEach(opt => clp.addOption(opt));
+
+	clp.on('command', (param, command) => {
 		if (String.is(param.ipc)) config.ipc = param.ipc;
 		clp.socketPipe = config.ipc;
 		global.processStat = global.ProcessStat.READY;
